@@ -1,0 +1,20 @@
+:root {
+  --forest: #173D32;
+  --gold: #B69A60;
+  --cream: #F4F1E8;
+  --sage: #849B83;
+  --white: #FFFFFF;
+  --text: #25332D;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: Arial, sans-serif;
+  background-color: var(--cream);
+  color: var(--text);
+}
