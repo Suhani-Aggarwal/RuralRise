@@ -1,4 +1,7 @@
 .env
+<<<<<<< HEAD
 .env.local
+=======
+>>>>>>> origin/feature/frontend
 .env.*
 !.env.example

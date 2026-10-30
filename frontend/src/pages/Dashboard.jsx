@@ -7,10 +7,15 @@ import "./Dashboard.css";
 
 function Dashboard() {
   const navigate = useNavigate();
+  const { user, userProfile } = useAuth();
 
-  const { user, userProfile, loading } = useAuth();
+  const displayName =
+    userProfile?.name || user?.displayName || "User";
 
-  // Logout function
+  const displayEmail = user?.email || "Community Member";
+
+  const displayRole = userProfile?.role || "Community Member";
+
   const handleLogout = async () => {
     try {
       await signOut(auth);
@@ -20,11 +25,6 @@ function Dashboard() {
       alert("Unable to logout. Please try again.");
     }
   };
-
-  // Wait for user profile to load
-  if (loading) {
-    return <h3>Loading your dashboard...</h3>;
-  }
 
   return (
     <div className="dashboard-layout">
@@ -74,36 +74,21 @@ function Dashboard() {
       {/* Main Content */}
       <main className="dashboard-main">
 
-        {/* Dashboard Header */}
         <header className="dashboard-header">
           <div>
-            <span className="dashboard-eyebrow">
-              YOUR GROWTH SPACE
-            </span>
-
-            <h1>Welcome back, {userProfile?.name || user?.displayName || "User"}!</h1>
-
-            <p>
-              Here's what's happening with your RuralRise journey.
-            </p>
+            <span className="dashboard-eyebrow">YOUR GROWTH SPACE</span>
+            <h1>Welcome, {displayName}!</h1>
+            <p>Here's what's happening with your RuralRise journey.</p>
           </div>
 
-          {/* Dynamic User Profile */}
           <div className="dashboard-profile">
             <div className="profile-avatar">
-              {userProfile?.name?.charAt(0).toUpperCase() ||
-                user?.displayName?.charAt(0).toUpperCase() ||
-                "U"}
+              {displayName.charAt(0).toUpperCase()}
             </div>
 
             <div>
-              <strong>
-                {userProfile?.name || user?.displayName || "RuralRise User"}
-              </strong>
-
-              <span>
-                {userProfile?.role || user?.email || "Community Member"}
-              </span>
+              <strong>{displayName}</strong>
+              <span>{displayRole}</span>
             </div>
           </div>
         </header>
@@ -112,28 +97,20 @@ function Dashboard() {
         <section className="welcome-banner">
           <div>
             <span>GROW WITH RURALRISE</span>
-
-            <h2>
-              Small beginnings.<br />
-              Bigger possibilities.
-            </h2>
-
+            <h2>Small beginnings.<br />Bigger possibilities.</h2>
             <p>
               Discover opportunities, connect with people,
               and take your next step towards growth.
             </p>
-
             <Link to="/marketplace" className="banner-button">
               Explore Marketplace →
             </Link>
           </div>
-
           <div className="banner-symbol">❋</div>
         </section>
 
         {/* Statistics */}
         <section className="dashboard-stats">
-
           <div className="stat-card">
             <span className="stat-icon">◈</span>
             <p>My Products</p>
@@ -154,7 +131,6 @@ function Dashboard() {
             <h3>0</h3>
             <span className="stat-note">People connected</span>
           </div>
-
         </section>
 
         {/* Quick Actions */}
@@ -167,7 +143,6 @@ function Dashboard() {
           </div>
 
           <div className="quick-actions">
-
             <Link to="/add-product" className="action-card">
               <span className="action-icon">＋</span>
               <h3>Add a Product</h3>
@@ -188,7 +163,6 @@ function Dashboard() {
               <p>Find opportunities for larger orders.</p>
               <span className="action-arrow">→</span>
             </Link>
-
           </div>
         </section>
 
