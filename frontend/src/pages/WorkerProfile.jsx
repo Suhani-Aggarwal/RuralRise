@@ -63,7 +63,7 @@ function WorkerProfile() {
     <div className="worker-profile-page">
       <div className="worker-profile-card">
         <p className="worker-profile-eyebrow">RURALRISE · WORKER</p>
-        <h1>Build Your Worker Profile</h1>
+        <h1>View & Update Your Worker Profile</h1>
         <p className="worker-profile-description">
           Share your skills and experience so businesses can discover
           opportunities that match your abilities.
@@ -98,7 +98,7 @@ function WorkerProfile() {
           {message && <p className="worker-profile-message">{message}</p>}
 
           <button type="submit" disabled={loading}>
-            {loading ? "Saving..." : "Save Worker Profile"}
+            {loading ? "Saving..." : "Save Profile Changes"}
           </button>
         </form>
 

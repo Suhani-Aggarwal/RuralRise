@@ -127,7 +127,7 @@ function Matching() {
 
         <div className="matching-nav-links">
           <Link to="/">Home</Link>
-          <Link to="/dashboard">Dashboard</Link>
+          <Link to="/my-dashboard">Dashboard</Link>
           <Link to="/marketplace">Marketplace</Link>
           <Link to="/bulk-requests">Bulk Requests</Link>
         </div>

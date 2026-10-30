@@ -46,26 +46,13 @@ async function handleLogin(e) {
     }
 
     const userData = userSnap.data();
-    console.log("LOGIN UID:", loggedInUser.uid);
-console.log("FIRESTORE DATA:", userData);
-console.log("FETCHED ROLE:", userData.role);
-    console.log("Logged-in user:", loggedInUser.email);
-console.log("Role fetched from Firestore:", userData.role);
-console.log("Redirecting to:", userData.role === "buyer"
-  ? "/buyer-dashboard"
-  : userData.role === "worker"
-  ? "/worker-dashboard"
-  : "/dashboard"
-);
-
-    // Redirect according to registered role
-    if (userData.role === "buyer") {
-      navigate("/buyer-dashboard");
-    } else if (userData.role === "worker") {
-      navigate("/worker-dashboard");
-    } else {
-      navigate("/dashboard");
-    }
+    const roleRoutes = {
+      buyer: "/buyer-dashboard",
+      seller: "/seller-dashboard",
+      worker: "/worker-dashboard",
+    };
+    const destination = roleRoutes[userData.role] || "/my-dashboard";
+    navigate(destination, { replace: true });
 
   } catch (error) {
     console.error("Login error:", error);

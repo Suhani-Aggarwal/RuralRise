@@ -1,0 +1,139 @@
+
+.payment-result-page {
+  min-height: 100vh;
+  padding: 45px 20px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  background: #f5f7f2;
+  color: #26352c;
+}
+
+.payment-result-card {
+  width: 100%;
+  max-width: 570px;
+  padding: 35px;
+  background: white;
+  border: 1px solid #e5e9e2;
+  border-radius: 18px;
+  text-align: center;
+  box-shadow: 0 12px 35px rgba(30, 55, 35, 0.07);
+}
+
+.payment-result-icon {
+  width: 65px;
+  height: 65px;
+  border-radius: 50%;
+  margin: 0 auto 18px;
+  display: grid;
+  place-items: center;
+  font-size: 32px;
+  font-weight: 700;
+}
+
+.payment-result-icon.success {
+  background: #e7f4e8;
+  color: #397447;
+}
+
+.payment-result-icon.failure {
+  background: #fff0ef;
+  color: #a23e38;
+}
+
+.payment-result-demo {
+  color: #6c846e;
+  font-size: 11px;
+  letter-spacing: 1.5px;
+}
+
+.payment-result-card h1 {
+  margin: 13px 0;
+  font-size: 27px;
+}
+
+.payment-result-card > p {
+  color: #6c786e;
+  line-height: 1.6;
+}
+
+.payment-result-details {
+  margin-top: 25px;
+  padding: 18px;
+  background: #f7f9f5;
+  border-radius: 12px;
+  text-align: left;
+}
+
+.payment-result-details div {
+  display: flex;
+  justify-content: space-between;
+  gap: 15px;
+  padding: 11px 0;
+  border-bottom: 1px solid #e7ece4;
+}
+
+.payment-result-details div:last-child {
+  border-bottom: none;
+}
+
+.payment-result-details span {
+  color: #748076;
+  font-size: 13px;
+}
+
+.payment-result-details strong {
+  font-size: 13px;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.payment-result-disclaimer {
+  margin-top: 18px;
+  padding: 12px;
+  background: #fff8e9;
+  color: #795c28;
+  border-radius: 9px;
+  font-size: 12px;
+}
+
+.payment-result-actions {
+  display: grid;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.payment-result-primary,
+.payment-result-retry {
+  display: block;
+  padding: 13px;
+  border-radius: 9px;
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.payment-result-primary {
+  background: #397447;
+  color: white;
+}
+
+.payment-result-retry {
+  background: #f1f5ef;
+  color: #397447;
+}
+
+@media (max-width: 550px) {
+  .payment-result-card {
+    padding: 22px;
+  }
+
+  .payment-result-details div {
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .payment-result-details strong {
+    text-align: left;
+  }
+}

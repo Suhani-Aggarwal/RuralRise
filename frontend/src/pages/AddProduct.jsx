@@ -1,9 +1,12 @@
 
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 import "./AddProduct.css";
 
 function AddProduct() {
+  const { user, userProfile } = useAuth();
+
   const [formData, setFormData] = useState({
     product_name: "",
     category: "",
@@ -30,63 +33,71 @@ function AddProduct() {
     setMessage("");
   }
 
- 
-function handleSubmit(e) {
-  e.preventDefault();
+  function handleSubmit(e) {
+    e.preventDefault();
 
-  const quantity = Number(formData.quantity);
-  const price = Number(formData.price);
+    const quantity = Number(formData.quantity);
+    const price = Number(formData.price);
 
-  if (quantity <= 0 || price <= 0) {
-    setMessage("Quantity and price must be greater than zero.");
-    return;
+    if (quantity <= 0 || price <= 0) {
+      setMessage("Quantity and price must be greater than zero.");
+      return;
+    }
+
+    if (!user?.uid) {
+      setMessage("Please log in before publishing a product.");
+      return;
+    }
+
+    try {
+      const existingProducts = JSON.parse(
+        localStorage.getItem("ruralrise_products") || "[]"
+      );
+
+      const newProduct = {
+        ...formData,
+        id: Date.now(),
+        quantity,
+        price,
+        priceValue: price,
+
+        // Seller information
+        sellerUid: user.uid,
+        seller:
+          userProfile?.name || user.displayName || "RuralRise Seller",
+
+        location: `${formData.village}, ${formData.state}`,
+        createdAt: new Date().toISOString(),
+      };
+
+      const updatedProducts = [...existingProducts, newProduct];
+
+      localStorage.setItem(
+        "ruralrise_products",
+        JSON.stringify(updatedProducts)
+      );
+
+      setMessage("Product published successfully!");
+
+      setFormData({
+        product_name: "",
+        category: "",
+        state: "",
+        village: "",
+        quantity: "",
+        unit: "",
+        price: "",
+        price_unit: "",
+        description: "",
+        image_url: "",
+      });
+
+      console.log("Published product:", newProduct);
+    } catch (error) {
+      console.error("Error saving product:", error);
+      setMessage("Unable to publish product. Please try again.");
+    }
   }
-
-  try {
-    const existingProducts = JSON.parse(
-      localStorage.getItem("ruralrise_products") || "[]"
-    );
-
-    const newProduct = {
-      ...formData,
-      id: Date.now(),
-      quantity,
-      price,
-      priceValue: price,
-      seller: "RuralRise Seller",
-      location: `${formData.village}, ${formData.state}`,
-      createdAt: new Date().toISOString(),
-    };
-
-    const updatedProducts = [...existingProducts, newProduct];
-
-    localStorage.setItem(
-      "ruralrise_products",
-      JSON.stringify(updatedProducts)
-    );
-
-    setMessage("Product published successfully!");
-
-    setFormData({
-      product_name: "",
-      category: "",
-      state: "",
-      village: "",
-      quantity: "",
-      unit: "",
-      price: "",
-      price_unit: "",
-      description: "",
-      image_url: "",
-    });
-
-    console.log("Published product:", newProduct);
-  } catch (error) {
-    console.error("Error saving product:", error);
-    setMessage("Unable to publish product. Please try again.");
-  }
-}
-
 
   return (
     <div className="add-product-page">
@@ -96,7 +107,7 @@ function handleSubmit(e) {
         </Link>
 
         <div className="add-product-nav-links">
-          <Link to="/dashboard">Dashboard</Link>
+          <Link to="/my-dashboard">Dashboard</Link>
           <Link to="/marketplace">Marketplace</Link>
           <Link to="/add-product" className="active">
             Add Product
@@ -138,28 +149,29 @@ function handleSubmit(e) {
               <div className="form-group">
                 <label htmlFor="category">Category *</label>
                 <select
-                    name="category"
-                    value={formData.category}
-                    onChange={handleChange}
-                    required
-                    >
-                    <option value="">Select Category</option>
-                    <option value="Agriculture">Agriculture</option>
-                    <option value="Fruits & Vegetables">Fruits & Vegetables</option>
-                    <option value="Grains & Pulses">Grains & Pulses</option>
-                    <option value="Dairy Products">Dairy Products</option>
-                    <option value="Livestock & Poultry">Livestock & Poultry</option>
-                    <option value="Handicrafts">Handicrafts</option>
-                    <option value="Handloom & Textiles">Handloom & Textiles</option>
-                    <option value="Food & Beverages">Food & Beverages</option>
-                    <option value="Spices & Herbs">Spices & Herbs</option>
-                    <option value="Organic Products">Organic Products</option>
-                    <option value="Flowers & Plants">Flowers & Plants</option>
-                    <option value="Forest Products">Forest Products</option>
-                    <option value="Household Products">Household Products</option>
-                    <option value="Rural Services">Rural Services</option>
-                    <option value="Other">Other</option>
-                    </select>
+                  id="category"
+                  name="category"
+                  value={formData.category}
+                  onChange={handleChange}
+                  required
+                >
+                  <option value="">Select Category</option>
+                  <option value="Agriculture">Agriculture</option>
+                  <option value="Fruits & Vegetables">Fruits & Vegetables</option>
+                  <option value="Grains & Pulses">Grains & Pulses</option>
+                  <option value="Dairy Products">Dairy Products</option>
+                  <option value="Livestock & Poultry">Livestock & Poultry</option>
+                  <option value="Handicrafts">Handicrafts</option>
+                  <option value="Handloom & Textiles">Handloom & Textiles</option>
+                  <option value="Food & Beverages">Food & Beverages</option>
+                  <option value="Spices & Herbs">Spices & Herbs</option>
+                  <option value="Organic Products">Organic Products</option>
+                  <option value="Flowers & Plants">Flowers & Plants</option>
+                  <option value="Forest Products">Forest Products</option>
+                  <option value="Household Products">Household Products</option>
+                  <option value="Rural Services">Rural Services</option>
+                  <option value="Other">Other</option>
+                </select>
               </div>
 
               <div className="form-row">

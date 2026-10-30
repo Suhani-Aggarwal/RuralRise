@@ -1,0 +1,137 @@
+
+.my-orders-page {
+  min-height: 100vh;
+  padding: 40px 7%;
+  background: #f7f8f4;
+  color: #26352c;
+}
+
+.my-orders-header {
+  margin-bottom: 35px;
+}
+
+.my-orders-header > a {
+  display: inline-block;
+  margin-bottom: 30px;
+  color: #47764f;
+  text-decoration: none;
+}
+
+.my-orders-header > span {
+  display: block;
+  color: #64816a;
+  font-size: 12px;
+  letter-spacing: 2px;
+}
+
+.my-orders-header h1 {
+  margin: 10px 0;
+  font-size: 36px;
+}
+
+.my-orders-header p {
+  color: #68756b;
+}
+
+.my-orders-empty,
+.my-order-card {
+  background: white;
+  border: 1px solid #e5e9e2;
+  border-radius: 12px;
+  padding: 25px;
+}
+
+.my-orders-empty {
+  text-align: center;
+}
+
+.my-orders-empty a {
+  display: inline-block;
+  margin-top: 15px;
+  color: #47764f;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.my-orders-list {
+  display: grid;
+  gap: 18px;
+}
+
+.my-order-card {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  align-items: center;
+}
+
+.my-order-card h2 {
+  margin: 10px 0;
+}
+
+.my-order-card p,
+.my-order-card div > span {
+  color: #68756b;
+  font-size: 14px;
+}
+
+.my-order-summary {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.my-order-summary strong {
+  font-size: 20px;
+}
+
+.my-order-summary span {
+  background: #fff2d9;
+  color: #89621b;
+  padding: 6px 12px;
+  border-radius: 20px;
+}
+
+@media (max-width: 600px) {
+  .my-order-card {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .my-order-summary {
+    align-items: flex-start;
+  }
+}
+
+.my-order-details {
+  flex: 1;
+  min-width: 0;
+}
+
+.my-order-payment {
+  margin-top: 16px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #f5f7f3;
+}
+
+.my-order-payment p {
+  margin: 6px 0;
+  font-size: 14px;
+}
+
+.my-order-pay-button {
+  margin-top: 14px;
+  padding: 10px 18px;
+  border: none;
+  border-radius: 8px;
+  background: #315b38;
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.my-order-pay-button:hover {
+  background: #24472b;
+}

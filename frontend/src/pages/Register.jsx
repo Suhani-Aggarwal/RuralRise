@@ -51,13 +51,12 @@ function Register() {
         updatedAt: serverTimestamp()
       });
 
-      if (role === "buyer") {
-  navigate("/buyer-dashboard");
-} else if (role === "worker") {
-  navigate("/worker-dashboard");
-} else {
-  navigate("/dashboard");
-}
+      const roleRoutes = {
+        buyer: "/buyer-dashboard",
+        seller: "/seller-dashboard",
+        worker: "/worker-dashboard",
+      };
+      navigate(roleRoutes[role] || "/my-dashboard", { replace: true });
 
     } catch (error) {
       console.error("Registration error:", error);

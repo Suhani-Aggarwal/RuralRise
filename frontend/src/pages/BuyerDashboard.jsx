@@ -11,28 +11,34 @@ function BuyerDashboard() {
   const { user, userProfile } = useAuth();
   const [orders, setOrders] = useState([]);
 
-  const displayName =
-    userProfile?.name || user?.displayName || "Buyer";
-
+  const displayName = userProfile?.name || user?.displayName || "Buyer";
   const displayEmail = user?.email || "";
 
   useEffect(() => {
-    if (!user?.uid) return;
-
-    try {
-      const savedOrders = JSON.parse(
-        localStorage.getItem("ruralrise_orders") || "[]"
-      );
-
-      const buyerOrders = savedOrders.filter(
-        (order) => order.buyerUid === user.uid
-      );
-
-      setOrders(buyerOrders);
-    } catch (error) {
-      console.error("Unable to load buyer orders:", error);
+    if (!user?.uid) {
       setOrders([]);
+      return;
     }
+
+    function loadOrders() {
+      try {
+        const savedOrders = JSON.parse(
+          localStorage.getItem("ruralrise_orders") || "[]"
+        );
+
+        setOrders(
+          savedOrders.filter((order) => order.buyerUid === user.uid)
+        );
+      } catch (error) {
+        console.error("Unable to load buyer orders:", error);
+        setOrders([]);
+      }
+    }
+
+    loadOrders();
+    window.addEventListener("storage", loadOrders);
+
+    return () => window.removeEventListener("storage", loadOrders);
   }, [user?.uid]);
 
   const pendingOrders = orders.filter(
@@ -55,13 +61,8 @@ function BuyerDashboard() {
 
   return (
     <div className="dashboard-layout">
-
-      {/* Sidebar */}
       <aside className="dashboard-sidebar">
-        <Link to="/" className="dashboard-logo">
-          ❋ RuralRise
-        </Link>
-
+        <Link to="/" className="dashboard-logo">❋ RuralRise</Link>
         <p className="sidebar-tagline">SELL → SCALE → GROW</p>
 
         <div className="sidebar-menu">
@@ -75,7 +76,7 @@ function BuyerDashboard() {
             <span>◈</span> Marketplace
           </Link>
 
-          <Link to="/marketplace" className="sidebar-link">
+          <Link to="/my-orders" className="sidebar-link">
             <span>▤</span> My Orders
           </Link>
         </div>
@@ -85,29 +86,19 @@ function BuyerDashboard() {
             <span>↩</span> Back to Home
           </Link>
 
-          <button
-            className="sidebar-link logout-button"
-            onClick={handleLogout}
-          >
+          <button className="sidebar-link logout-button" onClick={handleLogout}>
             <span>⇥</span> Logout
           </button>
         </div>
       </aside>
 
-      {/* Main Content */}
       <main className="dashboard-main">
-
         <header className="dashboard-header">
           <div>
-            <span className="dashboard-eyebrow">
-              YOUR BUYER SPACE
-            </span>
-
+            <span className="dashboard-eyebrow">YOUR BUYER SPACE</span>
             <h1>Welcome, {displayName}!</h1>
-
             <p>
-              Discover products, manage your orders and grow
-              through RuralRise.
+              Discover products, manage your orders and grow through RuralRise.
             </p>
           </div>
 
@@ -115,7 +106,6 @@ function BuyerDashboard() {
             <div className="profile-avatar">
               {displayName.charAt(0).toUpperCase()}
             </div>
-
             <div>
               <strong>{displayName}</strong>
               <span>{displayEmail}</span>
@@ -123,32 +113,22 @@ function BuyerDashboard() {
           </div>
         </header>
 
-        {/* Welcome Banner */}
         <section className="welcome-banner">
           <div>
             <span>YOUR RURALRISE JOURNEY</span>
-
-            <h2>
-              Find what you need.<br />
-              Grow together.
-            </h2>
-
+            <h2>Find what you need.<br />Grow together.</h2>
             <p>
-              Explore products from rural businesses and
-              connect with sellers through one marketplace.
+              Explore products from rural businesses and connect with sellers
+              through one marketplace.
             </p>
-
             <Link to="/marketplace" className="banner-button">
               Explore Marketplace →
             </Link>
           </div>
-
           <div className="banner-symbol">❋</div>
         </section>
 
-        {/* Statistics */}
         <section className="dashboard-stats">
-
           <div className="stat-card">
             <span className="stat-icon">▤</span>
             <p>Total Orders</p>
@@ -169,12 +149,9 @@ function BuyerDashboard() {
             <h3>{completedOrders.length}</h3>
             <span className="stat-note">Successfully completed</span>
           </div>
-
         </section>
 
-        {/* Quick Actions */}
         <section className="dashboard-section">
-
           <div className="section-heading">
             <div>
               <span>GET STARTED</span>
@@ -183,48 +160,38 @@ function BuyerDashboard() {
           </div>
 
           <div className="quick-actions">
-
             <Link to="/marketplace" className="action-card">
               <span className="action-icon">◈</span>
               <h3>Browse Marketplace</h3>
-              <p>
-                Discover products offered by rural businesses.
-              </p>
+              <p>Discover products offered by rural businesses.</p>
               <span className="action-arrow">→</span>
             </Link>
 
-            <Link to="/marketplace" className="action-card">
+            <Link to="/my-orders" className="action-card">
               <span className="action-icon">▤</span>
               <h3>View My Orders</h3>
-              <p>
-                Review your recent orders and their status.
-              </p>
+              <p>Review your orders and their status.</p>
               <span className="action-arrow">→</span>
             </Link>
 
             <Link to="/bulk-requests" className="action-card">
               <span className="action-icon">⇄</span>
-              <h3>Explore Bulk Opportunities</h3>
-              <p>
-                Discover opportunities for larger purchases.
-              </p>
+              <h3>Create a Bulk Request</h3>
+              <p>Publish a large order requirement and receive seller responses.</p>
               <span className="action-arrow">→</span>
             </Link>
-
           </div>
         </section>
 
-        {/* Recent Orders */}
         <section className="dashboard-section">
-
           <div className="section-heading buyer-orders-heading">
             <div>
               <span>YOUR PURCHASES</span>
               <h2>Recent Orders</h2>
             </div>
 
-            <Link to="/marketplace" className="buyer-view-all">
-              Browse Products →
+            <Link to="/my-orders" className="buyer-view-all">
+              View All Orders →
             </Link>
           </div>
 
@@ -232,61 +199,39 @@ function BuyerDashboard() {
             <div className="empty-activity">
               <span>✧</span>
               <h3>No orders yet</h3>
-              <p>
-                Your orders will appear here once you place
-                your first order.
-              </p>
-
+              <p>Your orders will appear here once you place your first order.</p>
               <Link to="/marketplace" className="buyer-empty-button">
                 Explore Marketplace →
               </Link>
             </div>
           ) : (
             <div className="buyer-orders-list">
-
-              {orders.slice().reverse().map((order) => (
+              {orders.slice().reverse().slice(0, 5).map((order) => (
                 <div className="buyer-order-card" key={order.orderId}>
-
                   <div className="buyer-order-info">
-                    <span className="buyer-order-id">
-                      {order.orderId}
-                    </span>
-
+                    <span className="buyer-order-id">{order.orderId}</span>
                     <h3>{order.productName}</h3>
-
-                    <p>
-                      Quantity: {order.quantity} {order.unit}
-                    </p>
-
-                    <p>
-                      {order.fulfilmentType}
-                    </p>
+                    <p>Quantity: {order.quantity} {order.unit}</p>
+                    <p>{order.fulfilmentType}</p>
                   </div>
 
                   <div className="buyer-order-right">
                     <strong>
                       ₹{Number(order.estimatedPrice || 0).toLocaleString("en-IN")}
                     </strong>
-
                     <span
                       className={`buyer-order-status ${
-                        order.status === "Completed"
-                          ? "completed"
-                          : "pending"
+                        order.status === "Completed" ? "completed" : "pending"
                       }`}
                     >
-                      {order.status}
+                      {order.status || "Pending"}
                     </span>
                   </div>
-
                 </div>
               ))}
-
             </div>
           )}
-
         </section>
-
       </main>
     </div>
   );

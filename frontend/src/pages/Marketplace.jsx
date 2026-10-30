@@ -189,7 +189,7 @@ function Marketplace() {
 
         <div className="market-nav-links">
           <Link to="/">Home</Link>
-          <Link to="/dashboard">Dashboard</Link>
+          <Link to="/my-dashboard">Dashboard</Link>
           <Link to="/marketplace" className="active">
             Marketplace
           </Link>

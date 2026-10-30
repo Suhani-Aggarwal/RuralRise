@@ -1,11 +1,12 @@
 
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import "./OrderConfirmation.css";
 import { useMemo, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 
 function OrderConfirmation() {
   const location = useLocation();
+  const navigate = useNavigate();
   const order = location.state;
   const { user } = useAuth();
 
@@ -13,49 +14,51 @@ function OrderConfirmation() {
     () => `RR-${Date.now().toString().slice(-8)}`,
     []
   );
+
   useEffect(() => {
-  if (!order || !user?.uid) return;
+    if (!order?.product || !order?.formData || !user?.uid) return;
 
-  try {
-    const existingOrders = JSON.parse(
-      localStorage.getItem("ruralrise_orders") || "[]"
-    );
+    try {
+      const existingOrders = JSON.parse(
+        localStorage.getItem("ruralrise_orders") || "[]"
+      );
 
-    // Prevent saving the same order twice
-    const alreadySaved = existingOrders.some(
-      (savedOrder) => savedOrder.orderId === orderId
-    );
+      const alreadySaved = existingOrders.some(
+        (savedOrder) => savedOrder.orderId === orderId
+      );
 
-    if (alreadySaved) return;
+      if (alreadySaved) return;
 
-    const savedOrder = {
-      orderId,
-      buyerUid: user.uid,
-      buyerName: order.formData?.buyer_name || user.displayName || "Buyer",
-      productName: order.product?.name || "Product",
-      quantity: Number(order.quantity) || 0,
-      unit: order.product?.unit || order.product?.priceUnit || "",
-      estimatedPrice: Number(order.estimatedPrice) || 0,
-      fulfilmentType:
-        order.fulfilmentType === "single"
-          ? "Single-Seller"
-          : order.fulfilmentType === "multiple"
-            ? "Multi-Seller"
-            : "Partial Fulfilment",
-      sellerAllocations: order.sellerAllocations || [],
-      status: "Pending",
-      createdAt: new Date().toISOString(),
-    };
+      const savedOrder = {
+        orderId,
+        buyerUid: user.uid,
+        buyerName: order.formData?.buyer_name || user.displayName || "Buyer",
+        productName: order.product?.name || "Product",
+        quantity: Number(order.quantity) || 0,
+        unit: order.product?.unit || order.product?.priceUnit || "",
+        estimatedPrice: Number(order.estimatedPrice) || 0,
+        fulfilmentType:
+          order.fulfilmentType === "single"
+            ? "Single-Seller"
+            : order.fulfilmentType === "multiple"
+              ? "Multi-Seller"
+              : "Partial Fulfilment",
+        sellerAllocations: order.sellerAllocations || [],
+        status: "Pending",
+        paymentStatus: "Payment Pending",
+        paymentMethod: "",
+        transactionId: "",
+        createdAt: new Date().toISOString(),
+      };
 
-    localStorage.setItem(
-      "ruralrise_orders",
-      JSON.stringify([...existingOrders, savedOrder])
-    );
-
-  } catch (error) {
-    console.error("Unable to save order:", error);
-  }
-}, [order, orderId, user]);
+      localStorage.setItem(
+        "ruralrise_orders",
+        JSON.stringify([...existingOrders, savedOrder])
+      );
+    } catch (error) {
+      console.error("Unable to save order:", error);
+    }
+  }, [order, orderId, user]);
 
   if (!order || !order.product || !order.formData) {
     return (
@@ -92,31 +95,37 @@ function OrderConfirmation() {
       ? "Multi-Seller Fulfilment"
       : "Single-Seller Fulfilment");
 
+  const proceedToPayment = () => {
+    navigate("/payment", {
+      state: {
+        orderId,
+        amount: totalPrice,
+        productName: product.name,
+      },
+    });
+  };
+
   return (
     <div className="confirmation-page">
-
       <nav className="confirmation-navbar">
         <Link to="/" className="confirmation-logo">
           ❋ RuralRise
         </Link>
 
         <div>
-          <Link to="/dashboard">Dashboard</Link>
+          <Link to="/my-dashboard">Dashboard</Link>
           <Link to="/marketplace">Marketplace</Link>
         </div>
       </nav>
 
       <main className="confirmation-container">
-
-        <div className="confirmation-success-icon">
-          ✓
-        </div>
+        <div className="confirmation-success-icon">✓</div>
 
         <span className="confirmation-eyebrow">
           SELL → SCALE → GROW
         </span>
 
-        <h1>Order Request Prepared!</h1>
+        <h1>Order Request Submitted!</h1>
 
         <p className="confirmation-intro">
           Your order request has been prepared successfully.
@@ -124,16 +133,13 @@ function OrderConfirmation() {
         </p>
 
         <section className="confirmation-card">
-
           <div className="confirmation-card-heading">
             <div>
               <span>ORDER SUMMARY</span>
               <h2>{product.name}</h2>
             </div>
 
-            <span className="demo-status">
-              Demo Preview
-            </span>
+            <span className="demo-status">Awaiting Seller Response</span>
           </div>
 
           <div className="confirmation-order-id">
@@ -142,7 +148,6 @@ function OrderConfirmation() {
           </div>
 
           <div className="confirmation-details">
-
             <div>
               <small>Buyer Name</small>
               <strong>{formData.buyer_name || "Not provided"}</strong>
@@ -157,9 +162,7 @@ function OrderConfirmation() {
 
             <div>
               <small>Delivery Location</small>
-              <strong>
-                {formData.delivery_location || "Not provided"}
-              </strong>
+              <strong>{formData.delivery_location || "Not provided"}</strong>
             </div>
 
             <div>
@@ -169,16 +172,13 @@ function OrderConfirmation() {
 
             <div>
               <small>Estimated Product Cost</small>
-              <strong>
-                ₹{totalPrice.toLocaleString("en-IN")}
-              </strong>
+              <strong>₹{totalPrice.toLocaleString("en-IN")}</strong>
             </div>
 
             <div>
               <small>Fulfilment Type</small>
               <strong>{displayFulfilmentType}</strong>
             </div>
-
           </div>
 
           {formData.requirements && (
@@ -231,38 +231,48 @@ function OrderConfirmation() {
 
           {!isFullyFulfilled && (
             <p className="confirmation-warning">
-              The currently available sellers cannot fulfil the
-              complete requested quantity. Additional sellers
-              or stock may be required.
+              The currently available sellers cannot fulfil the complete
+              requested quantity. Additional sellers or stock may be required.
             </p>
           )}
-
         </section>
 
         <div className="confirmation-notice">
+          <strong>Payment status: Payment Pending</strong>
+          <p>
+            This is a simulated payment for the RuralRise MVP. No real
+            transaction or money transfer will take place.
+          </p>
+
           <strong>What happens next?</strong>
           <p>
-            In the final RuralRise system, this request will be
-            shared with the selected MSMEs. They can review their
-            proposed contributions and respond to the buyer.
+            You can try the demo checkout to see how payment success,
+            failure and cancellation are handled.
           </p>
         </div>
 
         <div className="confirmation-actions">
-          <Link to="/marketplace" className="confirmation-primary">
-            Continue Shopping
+          <button
+            type="button"
+            className="confirmation-primary"
+            onClick={proceedToPayment}
+          >
+            Proceed to Demo Payment →
+          </button>
+
+          <Link to="/my-orders" className="confirmation-secondary">
+            View My Orders
           </Link>
 
-          <Link to="/dashboard" className="confirmation-secondary">
-            Go to Dashboard
+          <Link to="/marketplace" className="confirmation-secondary">
+            Continue Shopping
           </Link>
         </div>
 
         <p className="confirmation-disclaimer">
-          Frontend demonstration only. This request has not
-          been saved to the database or sent to sellers.
+          Demo only: order and payment information are saved in this browser.
+          Real payment processing and shared backend storage are not connected.
         </p>
-
       </main>
     </div>
   );

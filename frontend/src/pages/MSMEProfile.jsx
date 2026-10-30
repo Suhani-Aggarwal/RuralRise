@@ -152,6 +152,7 @@ function MSMEProfile() {
       <nav className="profile-navbar">
         <h2>❋ RuralRise</h2>
         <span>SELL → SCALE → GROW</span>
+        <button type="button" onClick={() => navigate("/seller-dashboard")}>Back to Dashboard</button>
       </nav>
 
       <div className="profile-container">
@@ -159,7 +160,7 @@ function MSMEProfile() {
         <div className="profile-heading">
           <span className="profile-label">BUILD YOUR BUSINESS PROFILE</span>
 
-          <h1>Tell us about your business.</h1>
+          <h1>View & Update Your Business Profile.</h1>
 
           <p>
             Share your products, traditional skills and resources.
