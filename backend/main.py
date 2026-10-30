@@ -460,7 +460,7 @@ class BulkRequestCreate(BaseModel):
     target_price: Optional[float] = Field(default=None, gt=0)
     needed_by: Optional[str] = Field(default=None, max_length=50)
     notes: Optional[str] = Field(default="", max_length=1000)
-    auto_match_and_dispatch: bool = Field(default=False, description="Automatically place sub-requests to matched producers")
+    auto_match_and_dispatch: bool = Field(default=False, description="Automatically place sub-requests to matched producers with atomic stock reservation")
 
 class BulkRequestOffer(BaseModel):
     offered_quantity: float = Field(gt=0)
@@ -471,7 +471,7 @@ class BulkRequestOffer(BaseModel):
 class PaymentCreate(BaseModel):
     request_id: Optional[str] = None
     bulk_request_id: Optional[str] = None
-    amount: float = Field(gt=0)
+    amount: Optional[float] = Field(default=None, gt=0, description="Optional: server calculates amount authoritatively from linked order")
     currency: str = Field(default="INR", max_length=10)
     payment_method: Literal["upi", "card", "netbanking", "wallet", "cod", "escrow"] = "upi"
     notes: Optional[str] = Field(default="", max_length=500)
@@ -1328,36 +1328,44 @@ def cancel_buyer_request(
     user: dict = Depends(verify_firebase_token)
 ):
     obj_id = parse_object_id(request_id, "Request")
-    buyer_request = requests_collection.find_one({"_id": obj_id})
-    if not buyer_request:
-        raise HTTPException(status_code=404, detail="Request not found")
 
-    if buyer_request.get("buyer_id") != user["uid"]:
-        raise HTTPException(status_code=403, detail="You can only cancel your own requests")
-
-    if buyer_request.get("status") not in ["pending"]:
-        raise HTTPException(
-            status_code=409,
-            detail=f"Cannot cancel a request that is already {buyer_request.get('status')}"
-        )
-
-    requests_collection.update_one(
-        {"_id": obj_id},
+    # Atomic conditional update eliminating race condition
+    now = datetime.now(timezone.utc)
+    result = requests_collection.update_one(
+        {
+            "_id": obj_id,
+            "buyer_id": user["uid"],
+            "status": "pending"
+        },
         {
             "$set": {
                 "status": "cancelled",
-                "updated_at": datetime.now(timezone.utc)
+                "updated_at": now
             }
         }
     )
 
-    create_in_app_notification(
-        user_id=buyer_request["seller_id"],
-        title="Order Request Cancelled",
-        message=f"{buyer_request.get('buyer_name', 'Buyer')} cancelled their request for {buyer_request.get('product_name')}.",
-        notif_type="order_cancelled",
-        link="/dashboard"
-    )
+    if result.modified_count == 0:
+        latest = requests_collection.find_one({"_id": obj_id})
+        if not latest:
+            raise HTTPException(status_code=404, detail="Request not found")
+        if latest.get("buyer_id") != user["uid"]:
+            raise HTTPException(status_code=403, detail="You can only cancel your own requests")
+        raise HTTPException(
+            status_code=409,
+            detail=f"Cannot cancel request. It has already been processed (Current status: {latest.get('status')})"
+        )
+
+    # Fetch seller to notify
+    buyer_request = requests_collection.find_one({"_id": obj_id})
+    if buyer_request and buyer_request.get("seller_id"):
+        create_in_app_notification(
+            user_id=buyer_request["seller_id"],
+            title="Order Request Cancelled",
+            message=f"{buyer_request.get('buyer_name', 'Buyer')} cancelled their request for {buyer_request.get('product_name')}.",
+            notif_type="order_cancelled",
+            link="/dashboard"
+        )
 
     return {"message": "Request cancelled successfully", "status": "cancelled"}
 
@@ -1484,6 +1492,47 @@ def match_sellers(request: MatchingRequest):
 # PHASE 7: Bulk Requests & Wholesale Aggregation
 # =========================================================
 
+def sanitize_bulk_request(doc: Dict[str, Any], viewer_uid: Optional[str] = None) -> Dict[str, Any]:
+    """Sanitize bulk request document to protect buyer privacy on public endpoints."""
+    if not doc:
+        return doc
+    doc = format_doc_id(doc)
+    is_owner = viewer_uid and (doc.get("buyer_id") == viewer_uid)
+
+    sanitized = {
+        "_id": doc.get("_id"),
+        "product_name": doc.get("product_name"),
+        "required_quantity": doc.get("required_quantity"),
+        "unit": doc.get("unit"),
+        "delivery_location": doc.get("delivery_location"),
+        "target_price": doc.get("target_price"),
+        "needed_by": doc.get("needed_by"),
+        "notes": doc.get("notes"),
+        "status": doc.get("status"),
+        "matched_quantity": doc.get("matched_quantity"),
+        "is_fulfilled": doc.get("is_fulfilled"),
+        "total_estimated_cost": doc.get("total_estimated_cost"),
+        "created_at": doc.get("created_at"),
+        "offers_count": len(doc.get("offers", []))
+    }
+
+    if is_owner:
+        sanitized["buyer_id"] = doc.get("buyer_id")
+        sanitized["buyer_name"] = doc.get("buyer_name")
+        sanitized["buyer_email"] = doc.get("buyer_email")
+        sanitized["allocations"] = doc.get("allocations", [])
+        sanitized["offers"] = doc.get("offers", [])
+        sanitized["dispatched_request_ids"] = doc.get("dispatched_request_ids", [])
+    else:
+        sanitized["buyer_name"] = "Verified Bulk Buyer"
+        if viewer_uid:
+            sanitized["my_offers"] = [
+                o for o in doc.get("offers", [])
+                if o.get("seller_id") == viewer_uid
+            ]
+    return sanitized
+
+
 @app.post("/bulk-requests/", tags=["Bulk Requests"])
 def create_bulk_request(
     bulk_in: BulkRequestCreate,
@@ -1491,9 +1540,8 @@ def create_bulk_request(
 ):
     """
     Create a bulk procurement requirement.
-    Executes matching and optionally dispatches sub-requests to matched producers.
+    Executes matching and optionally reserves stock atomically and dispatches sub-requests to matched producers.
     """
-    # 1. Compute matched allocations via matching logic
     match_payload = MatchingRequest(
         product_name=bulk_in.product_name,
         required_quantity=bulk_in.required_quantity,
@@ -1525,50 +1573,77 @@ def create_bulk_request(
         "updated_at": now
     }
 
-    # 2. If auto_match_and_dispatch is true, generate individual buyer requests
+    # Atomic stock reservation to prevent multiple bulk orders from over-allocating inventory
     dispatched_ids = []
+    reserved_matches = []
     if bulk_in.auto_match_and_dispatch and match_result["matches"]:
         for m in match_result["matches"]:
-            sub_req = {
-                "listing_id": m["listing_id"],
-                "seller_id": m["seller_id"],
-                "seller_name": m["seller_name"],
-                "product_name": bulk_in.product_name.strip(),
-                "buyer_id": user["uid"],
-                "buyer_name": user.get("name", "Bulk Buyer"),
-                "buyer_email": user.get("email", ""),
-                "delivery_location": bulk_in.delivery_location or "",
-                "contact": user.get("email", ""),
-                "required_quantity": m["available_quantity"],
-                "unit": m["unit"],
-                "price_per_unit": m["price"],
-                "total_estimated_price": m["subtotal"],
-                "message": f"Bulk Procurement Pool Order: {bulk_in.product_name} ({bulk_in.notes or 'No special instructions'})",
-                "status": "pending",
-                "is_paid": False,
-                "is_bulk_part": True,
-                "created_at": now,
-                "updated_at": now
-            }
-            sub_res = requests_collection.insert_one(sub_req)
-            dispatched_ids.append(str(sub_res.inserted_id))
+            listing_obj_id = parse_object_id(m["listing_id"], "Listing")
+            qty_to_reserve = float(m["available_quantity"])
 
-            create_in_app_notification(
-                user_id=m["seller_id"],
-                title="Bulk Pool Order Request!",
-                message=f"You have been allocated {m['available_quantity']} {m['unit']} in a pooled wholesale order for {bulk_in.product_name}.",
-                notif_type="bulk_order",
-                link="/dashboard"
+            reserve_res = listings_collection.update_one(
+                {
+                    "_id": listing_obj_id,
+                    "quantity": {"$gte": qty_to_reserve},
+                    "status": "active",
+                    "is_active": True
+                },
+                {
+                    "$inc": {"quantity": -qty_to_reserve},
+                    "$set": {"updated_at": now}
+                }
             )
 
+            if reserve_res.modified_count > 0:
+                updated_l = listings_collection.find_one({"_id": listing_obj_id})
+                if updated_l and updated_l.get("quantity", 0) <= 0:
+                    listings_collection.update_one({"_id": listing_obj_id}, {"$set": {"status": "out_of_stock"}})
+
+                sub_req = {
+                    "listing_id": m["listing_id"],
+                    "seller_id": m["seller_id"],
+                    "seller_name": m["seller_name"],
+                    "product_name": bulk_in.product_name.strip(),
+                    "buyer_id": user["uid"],
+                    "buyer_name": user.get("name", "Bulk Buyer"),
+                    "buyer_email": user.get("email", ""),
+                    "delivery_location": bulk_in.delivery_location or "",
+                    "contact": user.get("email", ""),
+                    "required_quantity": qty_to_reserve,
+                    "unit": m["unit"],
+                    "price_per_unit": m["price"],
+                    "total_estimated_price": m["subtotal"],
+                    "message": f"Bulk Procurement Pool Order: {bulk_in.product_name} ({bulk_in.notes or 'No special instructions'})",
+                    "status": "pending",
+                    "is_paid": False,
+                    "is_bulk_part": True,
+                    "stock_reserved": True,
+                    "created_at": now,
+                    "updated_at": now
+                }
+                sub_res = requests_collection.insert_one(sub_req)
+                dispatched_ids.append(str(sub_res.inserted_id))
+                reserved_matches.append(m)
+
+                create_in_app_notification(
+                    user_id=m["seller_id"],
+                    title="Bulk Pool Order Request!",
+                    message=f"You have been allocated {qty_to_reserve} {m['unit']} in a pooled wholesale order for {bulk_in.product_name}.",
+                    notif_type="bulk_order",
+                    link="/dashboard"
+                )
+            else:
+                logger.warning(f"Could not reserve stock for listing {m['listing_id']} due to concurrent allocation.")
+
     bulk_doc["dispatched_request_ids"] = dispatched_ids
+    bulk_doc["allocations"] = reserved_matches if bulk_in.auto_match_and_dispatch else match_result["matches"]
     res = bulk_requests_collection.insert_one(bulk_doc)
     bulk_id = str(res.inserted_id)
 
     create_in_app_notification(
         user_id=user["uid"],
         title="Bulk Request Published",
-        message=f"Bulk requirement for {bulk_in.required_quantity} {bulk_in.unit} of {bulk_in.product_name} is active with {len(match_result['matches'])} matched producers.",
+        message=f"Bulk requirement for {bulk_in.required_quantity} {bulk_in.unit} of {bulk_in.product_name} is active.",
         notif_type="bulk_order",
         link=f"/bulk-requests"
     )
@@ -1586,7 +1661,8 @@ def create_bulk_request(
 def get_bulk_requests(
     product_name: Optional[str] = None,
     status_filter: Optional[str] = Query("open", description="open, fulfilled, cancelled, all"),
-    limit: int = Query(50, ge=1, le=100)
+    limit: int = Query(50, ge=1, le=100),
+    current_user: Optional[dict] = Depends(get_optional_user)
 ):
     query: Dict[str, Any] = {}
     if status_filter and status_filter.lower() != "all":
@@ -1595,20 +1671,25 @@ def get_bulk_requests(
         query["product_name"] = {"$regex": re.escape(product_name.strip()), "$options": "i"}
 
     bulk_reqs = list(bulk_requests_collection.find(query).sort("created_at", DESCENDING).limit(limit))
-    return [format_doc_id(b) for b in bulk_reqs]
+    viewer_uid = current_user.get("uid") if current_user else None
+    return [sanitize_bulk_request(b, viewer_uid) for b in bulk_reqs]
 
 @app.get("/bulk-requests/buyer/me", tags=["Bulk Requests"])
 def get_my_bulk_requests(user: dict = Depends(verify_firebase_token)):
     bulk_reqs = list(bulk_requests_collection.find({"buyer_id": user["uid"]}).sort("created_at", DESCENDING))
-    return [format_doc_id(b) for b in bulk_reqs]
+    return [sanitize_bulk_request(b, user["uid"]) for b in bulk_reqs]
 
 @app.get("/bulk-requests/{bulk_id}", tags=["Bulk Requests"])
-def get_bulk_request_by_id(bulk_id: str):
+def get_bulk_request_by_id(
+    bulk_id: str,
+    current_user: Optional[dict] = Depends(get_optional_user)
+):
     obj_id = parse_object_id(bulk_id, "Bulk Request")
     bulk = bulk_requests_collection.find_one({"_id": obj_id})
     if not bulk:
         raise HTTPException(status_code=404, detail="Bulk request not found")
-    return format_doc_id(bulk)
+    viewer_uid = current_user.get("uid") if current_user else None
+    return sanitize_bulk_request(bulk, viewer_uid)
 
 @app.post("/bulk-requests/{bulk_id}/offers", tags=["Bulk Requests"])
 def submit_bulk_offer(
@@ -1616,9 +1697,6 @@ def submit_bulk_offer(
     offer: BulkRequestOffer,
     user: dict = Depends(verify_firebase_token)
 ):
-    """
-    Sellers/MSMEs can submit supply bids or offers to fulfill an open bulk order.
-    """
     obj_id = parse_object_id(bulk_id, "Bulk Request")
     bulk = bulk_requests_collection.find_one({"_id": obj_id})
     if not bulk:
@@ -1674,17 +1752,52 @@ def cancel_bulk_request(
     if bulk.get("buyer_id") != user["uid"]:
         raise HTTPException(status_code=403, detail="You can only cancel your own bulk requests")
 
+    now = datetime.now(timezone.utc)
+    # Roll back reserved stock for any pending dispatched sub-requests
+    for req_id in bulk.get("dispatched_request_ids", []):
+        sub_req = requests_collection.find_one({"_id": ObjectId(req_id), "status": "pending"})
+        if sub_req and sub_req.get("stock_reserved"):
+            listings_collection.update_one(
+                {"_id": ObjectId(sub_req["listing_id"])},
+                {
+                    "$inc": {"quantity": sub_req["required_quantity"]},
+                    "$set": {"status": "active", "updated_at": now}
+                }
+            )
+            requests_collection.update_one(
+                {"_id": sub_req["_id"]},
+                {"$set": {"status": "cancelled", "stock_reserved": False, "updated_at": now}}
+            )
+
     bulk_requests_collection.update_one(
         {"_id": obj_id},
-        {"$set": {"status": "cancelled", "updated_at": datetime.now(timezone.utc)}}
+        {"$set": {"status": "cancelled", "updated_at": now}}
     )
 
-    return {"message": "Bulk request cancelled successfully", "status": "cancelled"}
+    return {"message": "Bulk request cancelled successfully and reserved inventory released.", "status": "cancelled"}
 
 
 # =========================================================
 # PHASE 8: Real Payments & Transaction Management
 # =========================================================
+
+RAZORPAY_KEY_ID = os.getenv("RAZORPAY_KEY_ID", "rzp_test_ruralrise_default")
+RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET", "ruralrise_secret_key_mock_secure_2026")
+
+def generate_razorpay_signature(order_id: str, payment_id: str) -> str:
+    """Generate cryptographic HMAC-SHA256 signature matching payment gateway standard."""
+    msg = f"{order_id}|{payment_id}"
+    return hmac.new(
+        RAZORPAY_KEY_SECRET.encode("utf-8"),
+        msg.encode("utf-8"),
+        hashlib.sha256
+    ).hexdigest()
+
+def verify_razorpay_signature(order_id: str, payment_id: str, signature: str) -> bool:
+    """Verify payment signature strictly to prevent unauthorized payment mark."""
+    expected = generate_razorpay_signature(order_id, payment_id)
+    return hmac.compare_digest(expected, signature)
+
 
 @app.post("/payments/create-order", tags=["Payments"])
 def create_payment_order(
@@ -1692,21 +1805,78 @@ def create_payment_order(
     user: dict = Depends(verify_firebase_token)
 ):
     """
-    Create a payment intent / transaction record.
-    Links directly to single order request or bulk order.
+    Create a payment intent / order.
+    Requires a valid linked request_id or bulk_request_id.
+    Strictly verifies buyer ownership and authoritatively calculates amount from database.
     """
-    txn_id = f"txn_{uuid.uuid4().hex[:14]}"
-    gateway_order_id = f"order_{uuid.uuid4().hex[:12]}"
-    now = datetime.now(timezone.utc)
+    if not payment.request_id and not payment.bulk_request_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Payment must be linked to a valid request_id or bulk_request_id."
+        )
 
-    # Validate linked request if provided
     seller_id = ""
+    computed_amount = 0.0
+
     if payment.request_id:
         req_obj = parse_object_id(payment.request_id, "Request")
         req_doc = requests_collection.find_one({"_id": req_obj})
         if not req_doc:
-            raise HTTPException(status_code=404, detail="Referenced order request not found")
+            raise HTTPException(status_code=404, detail="Referenced order request not found.")
+
+        # Buyer ownership check
+        if req_doc.get("buyer_id") != user["uid"]:
+            raise HTTPException(status_code=403, detail="You can only initiate payment for your own order requests.")
+
+        # Order status check
+        if req_doc.get("status") not in ["accepted", "pending"]:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Cannot pay for request with status '{req_doc.get('status')}'. Must be accepted or pending."
+            )
+
+        # Duplicate check
+        if req_doc.get("is_paid"):
+            raise HTTPException(status_code=400, detail="This order request has already been paid.")
+
+        computed_amount = round(float(req_doc.get("total_estimated_price", 0)), 2)
+        if computed_amount <= 0:
+            raise HTTPException(status_code=400, detail="Invalid order total amount.")
+
+        # If client passed an amount, confirm it matches authoritative amount
+        if payment.amount is not None and abs(payment.amount - computed_amount) > 0.01:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Submitted payment amount (₹{payment.amount}) does not match authoritative order total (₹{computed_amount})."
+            )
+
         seller_id = req_doc.get("seller_id", "")
+
+    elif payment.bulk_request_id:
+        bulk_obj = parse_object_id(payment.bulk_request_id, "Bulk Request")
+        bulk_doc = bulk_requests_collection.find_one({"_id": bulk_obj})
+        if not bulk_doc:
+            raise HTTPException(status_code=404, detail="Referenced bulk request not found.")
+
+        if bulk_doc.get("buyer_id") != user["uid"]:
+            raise HTTPException(status_code=403, detail="You can only initiate payment for your own bulk requests.")
+
+        if bulk_doc.get("status") in ["cancelled", "closed"]:
+            raise HTTPException(status_code=400, detail="Cannot pay for a cancelled or closed bulk request.")
+
+        computed_amount = round(float(bulk_doc.get("total_estimated_cost", 0)), 2)
+        if computed_amount <= 0:
+            raise HTTPException(status_code=400, detail="Invalid bulk order total amount.")
+
+        if payment.amount is not None and abs(payment.amount - computed_amount) > 0.01:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Submitted payment amount (₹{payment.amount}) does not match authoritative bulk total (₹{computed_amount})."
+            )
+
+    txn_id = f"txn_{uuid.uuid4().hex[:14]}"
+    gateway_order_id = f"order_{uuid.uuid4().hex[:12]}"
+    now = datetime.now(timezone.utc)
 
     payment_doc = {
         "transaction_id": txn_id,
@@ -1716,7 +1886,7 @@ def create_payment_order(
         "seller_id": seller_id,
         "request_id": payment.request_id,
         "bulk_request_id": payment.bulk_request_id,
-        "amount": round(payment.amount, 2),
+        "amount": computed_amount,
         "currency": payment.currency.upper(),
         "payment_method": payment.payment_method,
         "status": "initiated",
@@ -1731,7 +1901,7 @@ def create_payment_order(
         "message": "Payment order initiated successfully",
         "transaction_id": txn_id,
         "gateway_order_id": gateway_order_id,
-        "amount": payment_doc["amount"],
+        "amount": computed_amount,
         "currency": payment_doc["currency"],
         "status": "initiated"
     }
@@ -1742,7 +1912,7 @@ def verify_payment(
     user: dict = Depends(verify_firebase_token)
 ):
     """
-    Verify payment completion and signature.
+    Verify payment completion via cryptographic HMAC-SHA256 signature verification.
     Updates transaction status, marks linked request as paid, and notifies buyer and seller.
     """
     payment = payments_collection.find_one({"transaction_id": verify_in.transaction_id})
@@ -1759,9 +1929,19 @@ def verify_payment(
             "status": "success"
         }
 
-    # Verify signature format
-    if not verify_in.signature or len(verify_in.signature.strip()) < 4:
-        raise HTTPException(status_code=400, detail="Invalid payment verification signature")
+    gateway_order_id = payment.get("gateway_order_id", verify_in.gateway_order_id)
+
+    # Real cryptographic HMAC-SHA256 signature check
+    is_valid_sig = verify_razorpay_signature(
+        gateway_order_id,
+        verify_in.gateway_payment_id,
+        verify_in.signature
+    )
+    if not is_valid_sig:
+        raise HTTPException(
+            status_code=400,
+            detail="Payment signature verification failed. Invalid or fraudulent payment signature."
+        )
 
     now = datetime.now(timezone.utc)
     payments_collection.update_one(
@@ -1835,16 +2015,42 @@ def refund_payment(transaction_id: str, user: dict = Depends(verify_firebase_tok
     if not payment:
         raise HTTPException(status_code=404, detail="Payment record not found")
 
+    if payment.get("user_id") != user["uid"] and payment.get("seller_id") != user["uid"]:
+        raise HTTPException(status_code=403, detail="Unauthorized to refund this transaction")
+
     if payment.get("status") != "success":
         raise HTTPException(status_code=400, detail="Only successful payments can be refunded")
 
     now = datetime.now(timezone.utc)
+    refund_id = f"rfnd_{uuid.uuid4().hex[:14]}"
+
     payments_collection.update_one(
         {"transaction_id": transaction_id},
-        {"$set": {"status": "refunded", "refunded_at": now, "updated_at": now}}
+        {
+            "$set": {
+                "status": "refunded",
+                "refund_id": refund_id,
+                "refunded_at": now,
+                "refund_amount": payment.get("amount", 0.0),
+                "updated_at": now
+            }
+        }
     )
 
-    return {"message": "Refund processed successfully", "transaction_id": transaction_id, "status": "refunded"}
+    # Revert paid status on linked order request
+    if payment.get("request_id"):
+        requests_collection.update_one(
+            {"_id": ObjectId(payment["request_id"])},
+            {"$set": {"is_paid": False, "refund_id": refund_id, "updated_at": now}}
+        )
+
+    return {
+        "message": "Refund processed successfully",
+        "transaction_id": transaction_id,
+        "refund_id": refund_id,
+        "refund_amount": payment.get("amount", 0.0),
+        "status": "refunded"
+    }
 
 
 # =========================================================
@@ -2005,35 +2211,77 @@ def update_worker_booking_status(
     update_in: WorkerBookingStatusUpdate,
     user: dict = Depends(verify_firebase_token)
 ):
+    """
+    Update worker booking status with strict state-transition permissions:
+    - Worker can: accept/decline pending bookings, start in_progress, and complete bookings.
+    - Client can: cancel pending/accepted bookings, or confirm completion of in-progress bookings.
+    """
     obj_id = parse_object_id(booking_id, "Booking")
     booking = worker_bookings_collection.find_one({"_id": obj_id})
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found")
 
-    if booking.get("worker_id") != user["uid"] and booking.get("client_id") != user["uid"]:
-        raise HTTPException(status_code=403, detail="Unauthorized to update this booking")
+    uid = user["uid"]
+    is_worker = (booking.get("worker_id") == uid)
+    is_client = (booking.get("client_id") == uid)
 
-    worker_bookings_collection.update_one(
-        {"_id": obj_id},
+    if not is_worker and not is_client:
+        raise HTTPException(status_code=403, detail="Unauthorized: You are neither the worker nor the client for this booking.")
+
+    current_status = booking.get("status", "pending")
+    target_status = update_in.status
+
+    if is_worker:
+        worker_allowed = {
+            "pending": ["accepted", "declined"],
+            "accepted": ["in_progress", "completed"],
+            "in_progress": ["completed"]
+        }
+        if target_status not in worker_allowed.get(current_status, []):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Worker is not permitted to transition booking from '{current_status}' to '{target_status}'. Permitted: {worker_allowed.get(current_status, [])}"
+            )
+    elif is_client:
+        client_allowed = {
+            "pending": ["cancelled"],
+            "accepted": ["cancelled"],
+            "in_progress": ["completed"]
+        }
+        if target_status not in client_allowed.get(current_status, []):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Client is not permitted to transition booking from '{current_status}' to '{target_status}'. Permitted: {client_allowed.get(current_status, [])}"
+            )
+
+    now = datetime.now(timezone.utc)
+    res = worker_bookings_collection.update_one(
+        {"_id": obj_id, "status": current_status},
         {
             "$set": {
-                "status": update_in.status,
+                "status": target_status,
                 "notes": update_in.notes or "",
-                "updated_at": datetime.now(timezone.utc)
+                "updated_at": now
             }
         }
     )
 
-    target_notify_uid = booking["client_id"] if user["uid"] == booking["worker_id"] else booking["worker_id"]
+    if res.modified_count == 0:
+        raise HTTPException(
+            status_code=409,
+            detail="Booking status changed concurrently. Please reload."
+        )
+
+    target_notify_uid = booking["client_id"] if is_worker else booking["worker_id"]
     create_in_app_notification(
         user_id=target_notify_uid,
-        title=f"Work Booking {update_in.status.capitalize()}",
-        message=f"The booking request has been updated to '{update_in.status}'.",
+        title=f"Work Booking {target_status.capitalize()}",
+        message=f"The booking request has been updated to '{target_status}'.",
         notif_type="work_booking",
         link="/dashboard"
     )
 
-    return {"message": f"Booking updated to '{update_in.status}'", "status": update_in.status}
+    return {"message": f"Booking updated to '{target_status}'", "status": target_status}
 
 
 # =========================================================
@@ -2154,11 +2402,16 @@ async def upload_image(
 
 
 # =========================================================
-# PHASE 12: AI Innovation & Rural Advisory Copilot
+# PHASE 12: Template & Advisory Assistance (Curated Rural Copilot)
 # =========================================================
 
-@app.post("/ai/generate-description", tags=["AI Copilot"])
+@app.post("/ai/generate-description", tags=["Template & Advisory Assistance"])
 def ai_generate_description(request: AIDescriptionRequest):
+    """
+    Curated description generator for rural producers and MSMEs.
+    Uses domain-specific templates for agricultural and artisan categories.
+    Can be connected to live cloud LLM inference in production.
+    """
     product = request.product_name.strip()
     category = request.category.strip()
     materials = (request.materials or "natural, authentic local ingredients").strip()
@@ -2184,11 +2437,17 @@ def ai_generate_description(request: AIDescriptionRequest):
         "category": category,
         "generated_description": generated_text,
         "highlight": highlight,
-        "suggested_price_guidance": guidance
+        "suggested_price_guidance": guidance,
+        "engine": "RuralRise Curated Rule-Based & Template Engine (Prototype)",
+        "is_template": True,
+        "notice": "Curated agricultural & craft template guidance for rural producers. Live LLM cloud inference can be enabled in production."
     }
 
-@app.post("/ai/advisory", tags=["AI Copilot"])
+@app.post("/ai/advisory", tags=["Template & Advisory Assistance"])
 def ai_market_advisory(request: AIAdvisoryRequest):
+    """
+    Curated agricultural & handicraft market advisory and government scheme lookup.
+    """
     q = request.query.lower()
 
     advisory_text = (
@@ -2229,7 +2488,10 @@ def ai_market_advisory(request: AIAdvisoryRequest):
     return {
         "query": request.query,
         "advisory": advisory_text,
-        "applicable_schemes": schemes
+        "applicable_schemes": schemes,
+        "engine": "RuralRise Curated Rule-Based & Template Engine (Prototype)",
+        "is_template": True,
+        "notice": "Government MSME and agri-mandi guidelines provided from verified rural welfare programs."
     }
 
 
