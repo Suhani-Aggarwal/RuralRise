@@ -6,9 +6,10 @@ from pydantic import BaseModel
 from typing import Optional
 from bson import ObjectId
 from typing import Optional, Literal
+from typing import Literal
 import firebase_admin
 from firebase_admin import credentials, auth
-from fastapi import Header, HTTPException
+from fastapi import Header, HTTPException, Depends
 
 load_dotenv()
 
@@ -33,7 +34,23 @@ class Seller(BaseModel):
     products: list[str]
 
 class Listing(BaseModel):
-    category: str
+    category: Literal[
+    "Agriculture",
+    "Fruits & Vegetables",
+    "Grains & Pulses",
+    "Dairy Products",
+    "Livestock & Poultry",
+    "Handicrafts",
+    "Handloom & Textiles",
+    "Food & Beverages",
+    "Spices & Herbs",
+    "Organic Products",
+    "Flowers & Plants",
+    "Forest Products",
+    "Household Products",
+    "Rural Services",
+    "Other"
+]
     seller_id: str
     product_name: str
     seller_name: str
@@ -85,6 +102,7 @@ def database_health():
     except Exception as e:
         print("Database connection error:", e)
         return {"status": "error", "message": "Database connection failed"}
+    
 @app.post("/sellers/")
 def create_seller(seller: Seller):
     seller_data = seller.model_dump()
@@ -103,17 +121,6 @@ def get_sellers():
         seller["_id"] = str(seller["_id"])
 
     return sellers
-
-@app.post("/listings/")
-def create_listing(listing: Listing):
-    listing_data = listing.model_dump()
-
-    result = listings_collection.insert_one(listing_data)
-
-    return {
-        "message": "Product listed successfully!",
-        "listing_id": str(result.inserted_id)
-    }
 
 @app.get("/listings/")
 def get_listings(category: str = None):
@@ -204,9 +211,55 @@ def delete_listing(listing_id: str):
         "listing_id": listing_id
     }
 
-@app.post("/requests/")
-def create_request(request: BuyerRequest):
+def verify_firebase_token(authorization: str = Header(None)):
+    if not authorization:
+        raise HTTPException(
+            status_code=401,
+            detail="Authorization header is missing"
+        )
 
+    try:
+        scheme, token = authorization.split(" ", 1)
+
+        if scheme.lower() != "bearer":
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid authentication scheme"
+            )
+
+        decoded_token = auth.verify_id_token(token)
+        return decoded_token
+
+    except HTTPException:
+        raise
+
+    except Exception:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or expired Firebase token"
+        )
+
+@app.get("/requests/seller/me")
+def get_seller_requests(
+    user: dict = Depends(verify_firebase_token)
+):
+    seller_requests = list(
+        requests_collection.find({
+            "seller_id": user["uid"]
+        })
+    )
+
+    for request in seller_requests:
+        request["_id"] = str(request["_id"])
+
+    return seller_requests
+
+    
+@app.post("/requests/")
+def create_request(
+    request: BuyerRequest,
+    user: dict = Depends(verify_firebase_token)
+):
     # Check whether the listing exists
     if not ObjectId.is_valid(request.listing_id):
         return {"error": "Invalid listing ID"}
@@ -234,7 +287,7 @@ def create_request(request: BuyerRequest):
         "seller_id": listing["seller_id"],
         "seller_name": listing["seller_name"],
         "product_name": listing["product_name"],
-        "buyer_id": "demo_buyer",
+        "buyer_id": user["uid"],
         "required_quantity": request.required_quantity,
         "unit": request.unit,
         "message": request.message,
@@ -249,33 +302,23 @@ def create_request(request: BuyerRequest):
         "status": "pending"
     }
 
-@app.get("/requests/seller/{seller_id}")
-def get_seller_requests(seller_id: str):
-
-    requests = list(
-        requests_collection.find({
-            "seller_id": seller_id
-        })
-    )
-
-    for request in requests:
-        request["_id"] = str(request["_id"])
-
-    return requests
 
 @app.patch("/requests/{request_id}")
 def update_request_status(
     request_id: str,
-    update: RequestStatusUpdate
+    update: RequestStatusUpdate,
+    user: dict = Depends(verify_firebase_token)
 ):
-
     # Validate request ID
     if not ObjectId.is_valid(request_id):
-        return {"error": "Invalid request ID"}
+        raise HTTPException(status_code=400, detail="Invalid request ID")
 
-    # Check requested status
+    # Validate requested status
     if update.status not in ["accepted", "rejected"]:
-        return {"error": "Status must be accepted or rejected"}
+        raise HTTPException(
+            status_code=400,
+            detail="Status must be accepted or rejected"
+        )
 
     # Find the buyer request
     buyer_request = requests_collection.find_one({
@@ -283,16 +326,33 @@ def update_request_status(
     })
 
     if buyer_request is None:
-        return {"error": "Request not found"}
+        raise HTTPException(status_code=404, detail="Request not found")
+
+    # Find the listing associated with this request
+    listing = listings_collection.find_one({
+        "_id": ObjectId(buyer_request["listing_id"])
+    })
+
+    if listing is None:
+        raise HTTPException(status_code=404, detail="Listing not found")
+
+    # Only the seller who owns this listing can update the request
+    if listing["seller_id"] != user["uid"]:
+        raise HTTPException(
+            status_code=403,
+            detail="You are not authorized to update this request"
+        )
 
     # Only pending requests can be updated
     if buyer_request["status"] != "pending":
-        return {"error": "This request has already been processed"}
+        raise HTTPException(
+            status_code=409,
+            detail="This request has already been processed"
+        )
 
     # If seller rejects, do not change stock
     if update.status == "rejected":
-
-        requests_collection.update_one(
+        result = requests_collection.update_one(
             {
                 "_id": ObjectId(request_id),
                 "status": "pending"
@@ -301,6 +361,12 @@ def update_request_status(
                 "$set": {"status": "rejected"}
             }
         )
+
+        if result.modified_count == 0:
+            raise HTTPException(
+                status_code=409,
+                detail="Request could not be updated"
+            )
 
         return {
             "message": "Request rejected successfully",
@@ -311,6 +377,7 @@ def update_request_status(
     result = listings_collection.update_one(
         {
             "_id": ObjectId(buyer_request["listing_id"]),
+            "seller_id": user["uid"],
             "quantity": {"$gte": buyer_request["required_quantity"]}
         },
         {
@@ -321,7 +388,10 @@ def update_request_status(
     )
 
     if result.modified_count == 0:
-        return {"error": "Insufficient stock or listing not found"}
+        raise HTTPException(
+            status_code=409,
+            detail="Insufficient stock or listing not found"
+        )
 
     # Update request status
     status_result = requests_collection.update_one(
@@ -345,7 +415,10 @@ def update_request_status(
             }
         )
 
-        return {"error": "Request could not be updated"}
+        raise HTTPException(
+            status_code=409,
+            detail="Request could not be updated"
+        )
 
     return {
         "message": "Request accepted successfully!",
@@ -353,23 +426,6 @@ def update_request_status(
         "quantity_deducted": buyer_request["required_quantity"],
         "unit": buyer_request["unit"]
     }
-category: Literal[
-    "Agriculture",
-    "Fruits & Vegetables",
-    "Grains & Pulses",
-    "Dairy Products",
-    "Livestock & Poultry",
-    "Handicrafts",
-    "Handloom & Textiles",
-    "Food & Beverages",
-    "Spices & Herbs",
-    "Organic Products",
-    "Flowers & Plants",
-    "Forest Products",
-    "Household Products",
-    "Rural Services",
-    "Other"
-]
 
 @app.get("/listings/{listing_id}")
 def get_listing(listing_id: str):
@@ -388,41 +444,33 @@ def get_listing(listing_id: str):
 
     return listing
 
-@app.get("/listings/{listing_id}")
-def get_listing(listing_id: str):
 
-    if not ObjectId.is_valid(listing_id):
-        return {"error": "Invalid listing ID"}
+@app.post("/listings/")
+def create_listing(
+    listing: Listing,
+    user: dict = Depends(verify_firebase_token)
+):
+    listing_data = listing.model_dump()
 
-    listing = listings_collection.find_one({
-        "_id": ObjectId(listing_id)
-    })
+    # Always use the authenticated seller's Firebase UID
+    listing_data["seller_id"] = user["uid"]
 
-    if listing is None:
-        return {"error": "Listing not found"}
+    result = listings_collection.insert_one(listing_data)
 
-    listing["_id"] = str(listing["_id"])
+    return {
+        "message": "Product listed successfully!",
+        "listing_id": str(result.inserted_id),
+        "seller_id": user["uid"]
+    }
 
-    return listing
 
-@app.get("/requests/seller/{seller_id}")
-def get_seller_requests(seller_id: str):
-    seller_requests = list(
-        requests_collection.find({
-            "seller_id": seller_id
-        })
-    )
-
-    for request in seller_requests:
-        request["_id"] = str(request["_id"])
-
-    return seller_requests
-
-@app.get("/requests/buyer/{buyer_id}")
-def get_buyer_requests(buyer_id: str):
+@app.get("/requests/buyer/me")
+def get_buyer_requests(
+    user: dict = Depends(verify_firebase_token)
+):
     buyer_requests = list(
         requests_collection.find({
-            "buyer_id": buyer_id
+            "buyer_id": user["uid"]
         })
     )
 
@@ -431,8 +479,20 @@ def get_buyer_requests(buyer_id: str):
 
     return buyer_requests
 
+
 FIREBASE_CREDENTIALS_PATH = os.getenv("FIREBASE_CREDENTIALS_PATH")
 
 if not firebase_admin._apps:
     cred = credentials.Certificate(FIREBASE_CREDENTIALS_PATH)
     firebase_admin.initialize_app(cred)
+
+@app.get("/auth/me")
+def get_current_user(
+    user: dict = Depends(verify_firebase_token)
+):
+    return {
+        "message": "Authentication successful!",
+        "uid": user["uid"],
+        "email": user.get("email")
+    }
+
