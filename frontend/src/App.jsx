@@ -8,6 +8,8 @@ import Dashboard from "./pages/Dashboard";
 import Marketplace from "./pages/Marketplace";
 import AddProduct from "./pages/AddProduct";
 import BulkRequests from "./pages/BulkRequests";
+import ProductDetails from "./pages/ProductDetails";
+import OrderRequest from "./pages/OrderRequest";
 
 function App() {
   return (
@@ -20,6 +22,8 @@ function App() {
         <Route path="/marketplace" element={<Marketplace />} />
         <Route path="/add-product" element={<AddProduct />} />
         <Route path="/bulk-requests" element={<BulkRequests />} />
+        <Route path="/product/:id" element={<ProductDetails />} />
+        <Route path="/order-request/:id" element={<OrderRequest />} />
       </Routes>
     </BrowserRouter>
   );
