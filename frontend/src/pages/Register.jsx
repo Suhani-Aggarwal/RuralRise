@@ -35,7 +35,6 @@ function Register() {
       );
 
       accountCreated = true;
-
       const user = userCredential.user;
 
       await updateProfile(user, {
@@ -47,7 +46,7 @@ function Register() {
         name: name.trim(),
         email: user.email,
         location: location.trim(),
-        role: role,
+        role,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
@@ -71,39 +70,80 @@ function Register() {
   }
 
   return (
-    <div className="auth-container">
-      <div className="auth-card">
-        <h2>Create Account</h2>
-        <p>Join RuralRise and grow your business with us.</p>
+    <div className="auth-page">
 
-        {error && <p className="error-message">{error}</p>}
+      {/* LEFT BRANDING PANEL */}
+      <div className="auth-brand">
+        <div>
+          <Link to="/">RuralRise</Link>
+          <p>SELL. SCALE. GROW.</p>
+        </div>
+
+        <div className="auth-brand-content">
+          <h1>
+            Empowering Rural Businesses.
+            <span> Creating Opportunities.</span>
+          </h1>
+
+          <p className="brand-description">
+            Connect with buyers, discover opportunities and
+            grow your business with the RuralRise community.
+          </p>
+        </div>
+
+        <div className="auth-footer">
+          RuralRise
+        </div>
+      </div>
+
+      {/* RIGHT REGISTRATION PANEL */}
+      <div className="auth-card">
+
+        <div className="auth-heading">
+          <span>JOIN OUR COMMUNITY</span>
+          <h2>Create Account</h2>
+          <p>Join RuralRise and grow your business with us.</p>
+        </div>
+
+        {error && (
+          <p className="error-message">{error}</p>
+        )}
 
         <form onSubmit={handleRegister}>
+
+          <label>Full Name</label>
           <input
+            className="form-control"
             type="text"
-            placeholder="Full Name"
+            placeholder="Enter your full name"
             value={name}
             onChange={(e) => setName(e.target.value)}
             required
           />
 
+          <label>Email Address</label>
           <input
+            className="form-control"
             type="email"
-            placeholder="Email Address"
+            placeholder="Enter your email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
           />
 
+          <label>Location</label>
           <input
+            className="form-control"
             type="text"
-            placeholder="Location"
+            placeholder="Enter your location"
             value={location}
             onChange={(e) => setLocation(e.target.value)}
             required
           />
 
+          <label>Select Your Role</label>
           <select
+            className="form-select"
             value={role}
             onChange={(e) => setRole(e.target.value)}
             required
@@ -116,22 +156,30 @@ function Register() {
             <option value="worker">Skilled Worker</option>
           </select>
 
+          <label>Password</label>
           <input
+            className="form-control"
             type="password"
-            placeholder="Password"
+            placeholder="Create a password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
           />
 
-          <button type="submit" disabled={loading}>
-            {loading ? "Creating Account..." : "Register"}
+          <button
+            type="submit"
+            className="auth-submit"
+            disabled={loading}
+          >
+            {loading ? "Creating Account..." : "Create Account"}
           </button>
+
         </form>
 
-        <p>
+        <p className="auth-switch">
           Already have an account? <Link to="/login">Login</Link>
         </p>
+
       </div>
     </div>
   );
