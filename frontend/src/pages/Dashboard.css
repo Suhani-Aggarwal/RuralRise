@@ -395,3 +395,20 @@
     font-size: 28px;
   }
 }
+
+.logout-button {
+  width: 100%;
+  background: transparent;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: inherit;
+  margin-top: 10px;
+  color: #b69a60;
+}
+
+.logout-button:hover {
+  color: #ffffff;
+  background: #173d32;
+}

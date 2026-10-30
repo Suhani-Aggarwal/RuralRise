@@ -1,8 +1,31 @@
 
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { signOut } from "firebase/auth";
+import { auth } from "../firebase/firebase";
+import { useAuth } from "../context/AuthContext";
 import "./Dashboard.css";
 
 function Dashboard() {
+  const navigate = useNavigate();
+  const { user, userProfile } = useAuth();
+
+  const displayName =
+    userProfile?.name || user?.displayName || "User";
+
+  const displayEmail = user?.email || "Community Member";
+
+  const displayRole = userProfile?.role || "Community Member";
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      navigate("/login");
+    } catch (error) {
+      console.error("Logout error:", error);
+      alert("Unable to logout. Please try again.");
+    }
+  };
+
   return (
     <div className="dashboard-layout">
 
@@ -38,6 +61,13 @@ function Dashboard() {
           <Link to="/" className="sidebar-link">
             <span>↩</span> Back to Home
           </Link>
+
+          <button
+            className="sidebar-link logout-button"
+            onClick={handleLogout}
+          >
+            <span>⇥</span> Logout
+          </button>
         </div>
       </aside>
 
@@ -47,15 +77,18 @@ function Dashboard() {
         <header className="dashboard-header">
           <div>
             <span className="dashboard-eyebrow">YOUR GROWTH SPACE</span>
-            <h1>Welcome back!</h1>
+            <h1>Welcome, {displayName}!</h1>
             <p>Here's what's happening with your RuralRise journey.</p>
           </div>
 
           <div className="dashboard-profile">
-            <div className="profile-avatar">U</div>
+            <div className="profile-avatar">
+              {displayName.charAt(0).toUpperCase()}
+            </div>
+
             <div>
-              <strong>RuralRise User</strong>
-              <span>Community Member</span>
+              <strong>{displayName}</strong>
+              <span>{displayRole}</span>
             </div>
           </div>
         </header>
@@ -145,7 +178,9 @@ function Dashboard() {
           <div className="empty-activity">
             <span>✧</span>
             <h3>Your journey starts here</h3>
-            <p>Your recent activities will appear here as you use RuralRise.</p>
+            <p>
+              Your recent activities will appear here as you use RuralRise.
+            </p>
           </div>
         </section>
 

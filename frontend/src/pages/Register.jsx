@@ -1,78 +1,46 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import {
-  signInWithEmailAndPassword,
-  sendPasswordResetEmail
-} from "firebase/auth";
+import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { auth } from "../firebase/firebase";
 import "./Auth.css";
 
-function Login() {
+function Register() {
+
   const navigate = useNavigate();
 
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [location, setLocation] = useState("");
+  const [role, setRole] = useState("");
   const [password, setPassword] = useState("");
+
   const [error, setError] = useState("");
-  const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Login Function
-  async function handleLogin(e) {
+  async function handleRegister(e) {
     e.preventDefault();
 
     setError("");
-    setMessage("");
     setLoading(true);
 
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      const userCredential = await createUserWithEmailAndPassword(
+        auth,
+        email,
+        password
+      );
+
+      await updateProfile(userCredential.user, {
+        displayName: name
+      });
 
       navigate("/dashboard");
 
     } catch (error) {
-      console.error("Login error:", error);
-
-      if (
-        error.code === "auth/invalid-credential" ||
-        error.code === "auth/wrong-password" ||
-        error.code === "auth/user-not-found"
-      ) {
-        setError("Invalid email or password. Please try again.");
-      } else {
-        setError("Something went wrong. Please try again.");
-      }
-
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  // Forgot Password Function
-  async function handleForgotPassword() {
-    setError("");
-    setMessage("");
-
-    if (!email) {
-      setError("Please enter your email address first.");
-      return;
+      setError(error.message);
     }
 
-    try {
-      await sendPasswordResetEmail(auth, email);
-
-      setMessage("Password reset link sent! Check your email.");
-
-    } catch (error) {
-      console.error("Password reset error:", error);
-
-      if (error.code === "auth/user-not-found") {
-        setError("No account found with this email.");
-      } else if (error.code === "auth/invalid-email") {
-        setError("Please enter a valid email address.");
-      } else {
-        setError("Unable to send reset email. Please try again.");
-      }
-    }
+    setLoading(false);
   }
 
   return (
@@ -81,17 +49,41 @@ function Login() {
       <div className="auth-brand">
         <Link to="/">❋ RuralRise</Link>
         <p>SELL → SCALE → GROW</p>
+
+        <div className="auth-brand-content">
+          <h1>
+            Local Roots.<br />
+            <span>Bigger Dreams.</span>
+          </h1>
+
+          <div className="brand-description">
+            Discover opportunities, connect with buyers,
+            and take your local business to new heights.
+          </div>
+        </div>
       </div>
 
-      <div className="auth-card login-card">
+      <div className="auth-card">
 
         <div className="auth-heading">
-          <span>WELCOME BACK</span>
-          <h2>Login to RuralRise</h2>
-          <p>Continue growing your opportunities with us.</p>
+          <span>JOIN OUR COMMUNITY</span>
+          <h2>Create Your Account</h2>
+          <p>Start your journey towards bigger opportunities.</p>
         </div>
 
-        <form onSubmit={handleLogin}>
+        <form onSubmit={handleRegister}>
+
+          <div className="mb-3">
+            <label>Full Name</label>
+            <input
+              type="text"
+              className="form-control"
+              placeholder="Enter your name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+            />
+          </div>
 
           <div className="mb-3">
             <label>Email Address</label>
@@ -106,39 +98,46 @@ function Login() {
           </div>
 
           <div className="mb-3">
+            <label>Location</label>
+            <input
+              type="text"
+              className="form-control"
+              placeholder="Your city or village"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              required
+            />
+          </div>
+
+          <div className="mb-3">
+            <label>I want to join as</label>
+            <select
+              className="form-select"
+              value={role}
+              onChange={(e) => setRole(e.target.value)}
+              required
+            >
+              <option value="" disabled>Select your role</option>
+              <option value="seller">Seller / Producer</option>
+              <option value="buyer">Buyer</option>
+              <option value="worker">Skilled Worker</option>
+            </select>
+          </div>
+
+          <div className="mb-3">
             <label>Password</label>
             <input
               type="password"
               className="form-control"
-              placeholder="Enter your password"
+              placeholder="Create a password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
             />
           </div>
 
-          <div className="forgot-password">
-            <button
-              type="button"
-              onClick={handleForgotPassword}
-              style={{
-                background: "none",
-                border: "none",
-                padding: 0,
-                cursor: "pointer",
-                color: "inherit"
-              }}
-            >
-              Forgot password?
-            </button>
-          </div>
-
           {error && (
             <p style={{ color: "red" }}>{error}</p>
-          )}
-
-          {message && (
-            <p style={{ color: "green" }}>{message}</p>
           )}
 
           <button
@@ -146,13 +145,13 @@ function Login() {
             className="btn gold-btn auth-submit"
             disabled={loading}
           >
-            {loading ? "Logging in..." : "Login →"}
+            {loading ? "Creating Account..." : "Create Account →"}
           </button>
 
         </form>
 
         <p className="auth-switch">
-          Don't have an account? <Link to="/register">Create Account</Link>
+          Already have an account? <Link to="/login">Login</Link>
         </p>
 
       </div>
@@ -165,4 +164,4 @@ function Login() {
   );
 }
 
-export default Login;
+export default Register;
