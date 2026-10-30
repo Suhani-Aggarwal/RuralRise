@@ -5,3 +5,12 @@
 >>>>>>> origin/feature/frontend
 .env.*
 !.env.example
+
+# Backend secrets and Python cache
+.env
+.env.*
+backend/firebase-service-account.json
+__pycache__/
+*.pyc
+.venv/
+venv/
