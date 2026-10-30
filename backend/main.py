@@ -17,7 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from pydantic import BaseModel, Field, EmailStr
+from pydantic import BaseModel, Field, EmailStr, model_validator
 from pymongo import MongoClient, ASCENDING, DESCENDING
 import firebase_admin
 from firebase_admin import credentials, auth
@@ -201,8 +201,21 @@ def parse_object_id(id_str: str, resource_name: str = "Resource") -> ObjectId:
 def format_doc_id(doc: Dict[str, Any]) -> Dict[str, Any]:
     if not doc:
         return doc
-    if "_id" in doc and isinstance(doc["_id"], ObjectId):
-        doc["_id"] = str(doc["_id"])
+    if "_id" in doc:
+        str_id = str(doc["_id"])
+        doc["_id"] = str_id
+        if "id" not in doc:
+            doc["id"] = str_id
+    if "product_name" in doc and "name" not in doc:
+        doc["name"] = doc["product_name"]
+    if "seller_name" in doc and "seller" not in doc:
+        doc["seller"] = doc["seller_name"]
+    if "image_url" in doc and "image" not in doc:
+        doc["image"] = doc["image_url"]
+    if "price" in doc and "priceValue" not in doc:
+        doc["priceValue"] = doc["price"]
+    if "village" in doc and "state" in doc and "location" not in doc:
+        doc["location"] = f"{doc.get('village', '')}, {doc.get('state', '')}".strip(", ")
     return doc
 
 
@@ -313,9 +326,10 @@ def get_optional_user(
 
 
 # ---------------------------------------------------------
-# Pydantic Request & Response Schemas
+# Pydantic Request & Response Schemas, Standards & Normalizers
 # ---------------------------------------------------------
-LISTING_CATEGORIES = Literal[
+
+STANDARD_CATEGORIES = [
     "Agriculture",
     "Fruits & Vegetables",
     "Grains & Pulses",
@@ -333,7 +347,44 @@ LISTING_CATEGORIES = Literal[
     "Other"
 ]
 
-CAPACITY_UNITS = Literal[
+CATEGORY_ALIASES: Dict[str, str] = {
+    "food": "Food & Beverages",
+    "food & beverages": "Food & Beverages",
+    "food and beverages": "Food & Beverages",
+    "textiles": "Handloom & Textiles",
+    "handloom & textiles": "Handloom & Textiles",
+    "handloom and textiles": "Handloom & Textiles",
+    "dairy": "Dairy Products",
+    "dairy products": "Dairy Products",
+    "livestock": "Livestock & Poultry",
+    "livestock & poultry": "Livestock & Poultry",
+    "poultry": "Livestock & Poultry",
+    "crafts": "Handicrafts",
+    "handicrafts": "Handicrafts",
+    "agriculture": "Agriculture",
+    "fruits & vegetables": "Fruits & Vegetables",
+    "fruits and vegetables": "Fruits & Vegetables",
+    "grains & pulses": "Grains & Pulses",
+    "grains and pulses": "Grains & Pulses",
+    "spices & herbs": "Spices & Herbs",
+    "spices and herbs": "Spices & Herbs",
+    "organic products": "Organic Products",
+    "flowers & plants": "Flowers & Plants",
+    "flowers and plants": "Flowers & Plants",
+    "forest products": "Forest Products",
+    "household products": "Household Products",
+    "rural services": "Rural Services",
+    "other": "Other"
+}
+
+def normalize_category(cat: Optional[str]) -> str:
+    if not cat:
+        return "Other"
+    clean = cat.strip().lower()
+    return CATEGORY_ALIASES.get(clean, cat.strip())
+
+
+STANDARD_UNITS = [
     "kg",
     "quintal",
     "tonnes",
@@ -343,6 +394,100 @@ CAPACITY_UNITS = Literal[
     "packs",
     "dozens",
     "meters"
+]
+
+UNIT_ALIASES: Dict[str, str] = {
+    "quintal": "quintal",
+    "quintals": "quintal",
+    "qtl": "quintal",
+    "kg": "kg",
+    "kgs": "kg",
+    "kilogram": "kg",
+    "kilograms": "kg",
+    "ton": "tonnes",
+    "tons": "tonnes",
+    "tonne": "tonnes",
+    "tonnes": "tonnes",
+    "piece": "pieces",
+    "pieces": "pieces",
+    "pc": "pieces",
+    "pcs": "pieces",
+    "jar": "jars",
+    "jars": "jars",
+    "pack": "packs",
+    "packs": "packs",
+    "box": "packs",
+    "boxes": "packs",
+    "packet": "packs",
+    "packets": "packs",
+    "dozen": "dozens",
+    "dozens": "dozens",
+    "liter": "litres",
+    "liters": "litres",
+    "litre": "litres",
+    "litres": "litres",
+    "ltr": "litres",
+    "ltrs": "litres",
+    "meter": "meters",
+    "meters": "meters",
+    "metre": "meters",
+    "metres": "meters"
+}
+
+def normalize_unit(unit: Optional[str]) -> str:
+    if not unit:
+        return "pieces"
+    clean = unit.strip().lower()
+    return UNIT_ALIASES.get(clean, unit.strip().lower())
+
+
+LISTING_CATEGORIES = Literal[
+    "Agriculture",
+    "Fruits & Vegetables",
+    "Grains & Pulses",
+    "Dairy Products",
+    "Livestock & Poultry",
+    "Handicrafts",
+    "Handloom & Textiles",
+    "Food & Beverages",
+    "Spices & Herbs",
+    "Organic Products",
+    "Flowers & Plants",
+    "Forest Products",
+    "Household Products",
+    "Rural Services",
+    "Other",
+    # Accepted Frontend Aliases
+    "Food",
+    "Textiles",
+    "Dairy",
+    "Livestock"
+]
+
+CAPACITY_UNITS = Literal[
+    "kg",
+    "quintal",
+    "tonnes",
+    "pieces",
+    "litres",
+    "jars",
+    "packs",
+    "dozens",
+    "meters",
+    # Accepted Plural / Alternate Forms
+    "quintals",
+    "kgs",
+    "ton",
+    "tons",
+    "piece",
+    "jar",
+    "pack",
+    "dozen",
+    "liters",
+    "liter",
+    "litre",
+    "boxes",
+    "box"
 ]
 
 ROLE_TYPES = Literal[
@@ -361,12 +506,30 @@ class Seller(BaseModel):
     state: str = Field(default="India", max_length=100)
     products: list[str] = Field(default_factory=list)
 
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_seller_input(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            prods = data.get("products")
+            if isinstance(prods, str):
+                data["products"] = [p.strip() for p in prods.split(",") if p.strip()]
+        return data
+
 class SellerUpdate(BaseModel):
     name: Optional[str] = None
     phone: Optional[str] = None
     village: Optional[str] = None
     state: Optional[str] = None
     products: Optional[list[str]] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_seller_update(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            prods = data.get("products")
+            if isinstance(prods, str):
+                data["products"] = [p.strip() for p in prods.split(",") if p.strip()]
+        return data
 
 class SellerVerificationRequest(BaseModel):
     id_proof_type: str = Field(min_length=2, max_length=50, description="e.g. Aadhaar, VoterID, PAN, FSSAI, Udyam")
@@ -391,27 +554,100 @@ class UserRoleChange(BaseModel):
     role: ROLE_TYPES
 
 class Listing(BaseModel):
-    category: LISTING_CATEGORIES
+    category: str = Field(default="Other", max_length=100)
     product_name: str = Field(min_length=2, max_length=150)
-    seller_name: str = Field(min_length=2, max_length=100)
+    seller_name: Optional[str] = Field(default=None, max_length=100)
     state: str = Field(min_length=2, max_length=100)
     village: str = Field(min_length=2, max_length=100)
     unit: str = Field(min_length=1, max_length=30)
     quantity: float = Field(gt=0, description="Available quantity must be positive")
     price: float = Field(gt=0, description="Price per unit must be positive")
+    price_unit: Optional[str] = Field(default=None, max_length=50)
+    priceValue: Optional[float] = None
+    location: Optional[str] = None
     description: str = Field(default="", max_length=2000)
     image_url: str = Field(default="", max_length=1000)
     seller_id: Optional[str] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_listing(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            # Accept 'name' as alias for 'product_name'
+            if "name" in data and not data.get("product_name"):
+                data["product_name"] = data["name"]
+            # Accept 'seller' as alias for 'seller_name'
+            if "seller" in data and not data.get("seller_name"):
+                data["seller_name"] = data["seller"]
+            # Normalize Category
+            cat = data.get("category")
+            if cat and isinstance(cat, str):
+                data["category"] = normalize_category(cat)
+            # Normalize Unit
+            u = data.get("unit")
+            if u and isinstance(u, str):
+                data["unit"] = normalize_unit(u)
+            # Numeric coercions if sent as string from React inputs
+            if "quantity" in data and isinstance(data["quantity"], str):
+                try:
+                    data["quantity"] = float(data["quantity"].replace(",", "").strip())
+                except ValueError:
+                    pass
+            if "price" in data and isinstance(data["price"], str):
+                try:
+                    data["price"] = float(data["price"].replace(",", "").strip())
+                except ValueError:
+                    pass
+            # Default price_unit and location
+            if not data.get("price_unit") and data.get("unit"):
+                data["price_unit"] = f"per {data['unit']}"
+            if not data.get("location"):
+                v = data.get("village", "")
+                s = data.get("state", "")
+                if v or s:
+                    data["location"] = f"{v}, {s}".strip(", ")
+            if "priceValue" not in data and "price" in data:
+                data["priceValue"] = data["price"]
+        return data
 
 class ListingUpdate(BaseModel):
     price: Optional[float] = Field(default=None, gt=0)
     quantity: Optional[float] = Field(default=None, ge=0)
     product_name: Optional[str] = Field(default=None, min_length=2, max_length=150)
-    category: Optional[LISTING_CATEGORIES] = None
+    category: Optional[str] = None
     description: Optional[str] = Field(default=None, max_length=2000)
     image_url: Optional[str] = Field(default=None, max_length=1000)
+    state: Optional[str] = None
+    village: Optional[str] = None
+    unit: Optional[str] = None
+    price_unit: Optional[str] = None
+    seller_name: Optional[str] = None
     status: Optional[Literal["active", "inactive", "out_of_stock"]] = None
     is_active: Optional[bool] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_listing_update(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if "name" in data and not data.get("product_name"):
+                data["product_name"] = data["name"]
+            if "seller" in data and not data.get("seller_name"):
+                data["seller_name"] = data["seller"]
+            if "category" in data and isinstance(data["category"], str):
+                data["category"] = normalize_category(data["category"])
+            if "unit" in data and isinstance(data["unit"], str):
+                data["unit"] = normalize_unit(data["unit"])
+            if "quantity" in data and isinstance(data["quantity"], str):
+                try:
+                    data["quantity"] = float(data["quantity"].replace(",", "").strip())
+                except ValueError:
+                    pass
+            if "price" in data and isinstance(data["price"], str):
+                try:
+                    data["price"] = float(data["price"].replace(",", "").strip())
+                except ValueError:
+                    pass
+        return data
 
 class BuyerRequest(BaseModel):
     listing_id: str
@@ -421,6 +657,31 @@ class BuyerRequest(BaseModel):
     buyer_name: Optional[str] = Field(default=None, max_length=100)
     delivery_location: Optional[str] = Field(default=None, max_length=200)
     contact: Optional[str] = Field(default=None, max_length=100)
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_buyer_request(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            # Map frontend aliases
+            if "product_id" in data and not data.get("listing_id"):
+                data["listing_id"] = str(data["product_id"])
+            if "id" in data and not data.get("listing_id"):
+                data["listing_id"] = str(data["id"])
+            if "quantity" in data and not data.get("required_quantity"):
+                val = data["quantity"]
+                if isinstance(val, str):
+                    try:
+                        val = float(val.replace(",", "").strip())
+                    except ValueError:
+                        pass
+                data["required_quantity"] = val
+            if "requirements" in data and not data.get("message"):
+                data["message"] = data["requirements"]
+            if "location" in data and not data.get("delivery_location"):
+                data["delivery_location"] = data["location"]
+            if "unit" in data and isinstance(data["unit"], str):
+                data["unit"] = normalize_unit(data["unit"])
+        return data
 
 class RequestStatusUpdate(BaseModel):
     status: Literal["accepted", "rejected"]
@@ -433,13 +694,64 @@ class MSMEProfile(BaseModel):
     state: str = Field(min_length=2, max_length=100)
     village: str = Field(min_length=2, max_length=100)
     capacity: float = Field(gt=0)
-    capacity_unit: CAPACITY_UNITS
+    capacity_unit: str = Field(min_length=1, max_length=30)
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_msme_profile(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            # Split comma-separated string inputs from React frontend
+            for field in ["products", "skills", "materials"]:
+                val = data.get(field)
+                if isinstance(val, str):
+                    items = [x.strip() for x in val.split(",") if x.strip()]
+                    data[field] = items if items else [val.strip()]
+                elif isinstance(val, list):
+                    data[field] = [str(x).strip() for x in val if str(x).strip()]
+
+            # Coerce capacity string if necessary
+            if "capacity" in data and isinstance(data["capacity"], str):
+                try:
+                    data["capacity"] = float(data["capacity"].replace(",", "").strip())
+                except ValueError:
+                    pass
+
+            # Normalize capacity unit
+            if "capacity_unit" in data and isinstance(data["capacity_unit"], str):
+                data["capacity_unit"] = normalize_unit(data["capacity_unit"])
+        return data
 
 class MatchingRequest(BaseModel):
     product_name: str = Field(min_length=2, max_length=150)
     required_quantity: float = Field(gt=0)
     unit: str = Field(min_length=1, max_length=30)
     location: Optional[str] = Field(default=None, max_length=100)
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_matching_request(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if "product" in data and not data.get("product_name"):
+                data["product_name"] = data["product"]
+            if "quantity" in data and not data.get("required_quantity"):
+                val = data["quantity"]
+                if isinstance(val, str):
+                    try:
+                        val = float(val.replace(",", "").strip())
+                    except ValueError:
+                        pass
+                data["required_quantity"] = val
+            elif "requiredQuantity" in data and not data.get("required_quantity"):
+                val = data["requiredQuantity"]
+                if isinstance(val, str):
+                    try:
+                        val = float(val.replace(",", "").strip())
+                    except ValueError:
+                        pass
+                data["required_quantity"] = val
+            if "unit" in data and isinstance(data["unit"], str):
+                data["unit"] = normalize_unit(data["unit"])
+        return data
 
 class AIDescriptionRequest(BaseModel):
     product_name: str = Field(min_length=2, max_length=150)
@@ -456,11 +768,49 @@ class BulkRequestCreate(BaseModel):
     product_name: str = Field(min_length=2, max_length=150)
     required_quantity: float = Field(gt=0)
     unit: str = Field(min_length=1, max_length=30)
+    category: Optional[str] = Field(default="Agriculture", max_length=100)
     delivery_location: Optional[str] = Field(default=None, max_length=200)
     target_price: Optional[float] = Field(default=None, gt=0)
     needed_by: Optional[str] = Field(default=None, max_length=50)
     notes: Optional[str] = Field(default="", max_length=1000)
+    buyer_name: Optional[str] = Field(default=None, max_length=100)
     auto_match_and_dispatch: bool = Field(default=False, description="Automatically place sub-requests to matched producers with atomic stock reservation")
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_bulk_request(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            # Frontend uses 'product' for 'product_name'
+            if "product" in data and not data.get("product_name"):
+                data["product_name"] = data["product"]
+            # Frontend uses 'quantity' for 'required_quantity'
+            if "quantity" in data and not data.get("required_quantity"):
+                val = data["quantity"]
+                if isinstance(val, str):
+                    try:
+                        val = float(val.replace(",", "").strip())
+                    except ValueError:
+                        pass
+                data["required_quantity"] = val
+            # Frontend uses 'location' for 'delivery_location'
+            if "location" in data and not data.get("delivery_location"):
+                data["delivery_location"] = data["location"]
+            # Frontend uses 'deadline' for 'needed_by'
+            if "deadline" in data and not data.get("needed_by"):
+                data["needed_by"] = data["deadline"]
+            # Frontend uses 'description' for 'notes'
+            if "description" in data and not data.get("notes"):
+                data["notes"] = data["description"]
+            # Frontend uses 'buyer' for 'buyer_name'
+            if "buyer" in data and not data.get("buyer_name"):
+                data["buyer_name"] = data["buyer"]
+            # Category normalization
+            if "category" in data and isinstance(data["category"], str):
+                data["category"] = normalize_category(data["category"])
+            # Unit normalization
+            if "unit" in data and isinstance(data["unit"], str):
+                data["unit"] = normalize_unit(data["unit"])
+        return data
 
 class BulkRequestOffer(BaseModel):
     offered_quantity: float = Field(gt=0)
@@ -870,6 +1220,13 @@ def get_my_msme_profile(user: dict = Depends(verify_firebase_token)):
             status_code=404,
             detail="MSME profile not found. Please complete your profile."
         )
+    # Ensure frontend text inputs can read comma-separated strings or lists
+    if isinstance(profile.get("products"), list):
+        profile["products_str"] = ", ".join(profile["products"])
+    if isinstance(profile.get("skills"), list):
+        profile["skills_str"] = ", ".join(profile["skills"])
+    if isinstance(profile.get("materials"), list):
+        profile["materials_str"] = ", ".join(profile["materials"])
     return profile
 
 @app.post("/msme-profiles/", tags=["MSME Profiles"])
@@ -920,9 +1277,18 @@ def create_listing(
     listing_data = listing.model_dump()
 
     listing_data["seller_id"] = user["uid"]
-    listing_data["seller_name"] = listing.seller_name.strip() or user.get("name", "Rural Producer")
+    seller_name = (listing.seller_name or "").strip() or user.get("name") or user.get("displayName") or "RuralRise Seller"
+    listing_data["seller_name"] = seller_name
     listing_data["is_active"] = True
     listing_data["status"] = "active"
+    if not listing_data.get("location"):
+        v = listing_data.get("village", "")
+        s = listing_data.get("state", "")
+        listing_data["location"] = f"{v}, {s}".strip(", ")
+    if not listing_data.get("price_unit"):
+        listing_data["price_unit"] = f"per {listing.unit}"
+    if "priceValue" not in listing_data:
+        listing_data["priceValue"] = listing.price
     listing_data["created_at"] = datetime.now(timezone.utc)
     listing_data["updated_at"] = datetime.now(timezone.utc)
 
@@ -966,9 +1332,10 @@ def get_listings(
         query["status"] = "active"
         query["quantity"] = {"$gt": 0}
 
-    # Category filter
+    # Category filter (seamlessly handles standard names and frontend aliases)
     if category and category.strip().lower() not in ["all", ""]:
-        query["category"] = category.strip()
+        norm_cat = normalize_category(category)
+        query["category"] = {"$in": [category.strip(), norm_cat]}
 
     # Search keyword filter
     search_term = (search or q or "").strip()
@@ -1047,6 +1414,19 @@ def update_listing(
     updates = {k: v for k, v in update_data.model_dump().items() if v is not None}
     if not updates:
         return {"message": "No changes submitted.", "listing_id": listing_id}
+
+    if "name" in updates and "product_name" not in updates:
+        updates["product_name"] = updates["name"]
+    if "seller" in updates and "seller_name" not in updates:
+        updates["seller_name"] = updates["seller"]
+    if "category" in updates and updates["category"]:
+        updates["category"] = normalize_category(updates["category"])
+    if "unit" in updates and updates["unit"]:
+        updates["unit"] = normalize_unit(updates["unit"])
+    if "state" in updates or "village" in updates:
+        v = updates.get("village", listing.get("village", ""))
+        s = updates.get("state", listing.get("state", ""))
+        updates["location"] = f"{v}, {s}".strip(", ")
 
     # Automatically synchronize status based on updated quantity
     if "quantity" in updates:
@@ -1131,8 +1511,8 @@ def create_request(
             detail="Quantity must be greater than zero"
         )
 
-    listing_unit = listing.get("unit", "").strip().lower()
-    requested_unit = request.unit.strip().lower()
+    listing_unit = normalize_unit(listing.get("unit", ""))
+    requested_unit = normalize_unit(request.unit)
     if requested_unit != listing_unit:
         raise HTTPException(
             status_code=400,
@@ -1188,19 +1568,42 @@ def create_request(
         "total_estimated_price": total_estimated_price
     }
 
+def format_request_doc(r: Dict[str, Any]) -> Dict[str, Any]:
+    if not r:
+        return r
+    r = format_doc_id(r)
+    r["orderId"] = str(r["_id"])
+    r["productName"] = r.get("product_name")
+    r["quantity"] = r.get("required_quantity")
+    r["deliveryLocation"] = r.get("delivery_location")
+    r["estimatedPrice"] = r.get("total_estimated_price", 0.0)
+    r["createdAt"] = r.get("created_at")
+    r["buyerUid"] = r.get("buyer_id")
+    r["paymentStatus"] = "Completed" if r.get("is_paid") else "Payment Pending"
+    r["fulfilmentType"] = "single"
+    r["sellerAllocations"] = [{
+        "sellerUid": r.get("seller_id"),
+        "seller": r.get("seller_name"),
+        "name": r.get("seller_name"),
+        "allocated": r.get("required_quantity"),
+        "unit": r.get("unit"),
+        "status": (r.get("status") or "pending").capitalize()
+    }]
+    return r
+
 @app.get("/requests/seller/me", tags=["Requests"])
 def get_seller_requests(user: dict = Depends(verify_firebase_token)):
     seller_requests = list(
         requests_collection.find({"seller_id": user["uid"]}).sort("created_at", DESCENDING)
     )
-    return [format_doc_id(r) for r in seller_requests]
+    return [format_request_doc(r) for r in seller_requests]
 
 @app.get("/requests/buyer/me", tags=["Requests"])
 def get_buyer_requests(user: dict = Depends(verify_firebase_token)):
     buyer_requests = list(
         requests_collection.find({"buyer_id": user["uid"]}).sort("created_at", DESCENDING)
     )
-    return [format_doc_id(r) for r in buyer_requests]
+    return [format_request_doc(r) for r in buyer_requests]
 
 @app.patch("/requests/{request_id}", tags=["Requests"])
 def update_request_status(
@@ -1378,17 +1781,28 @@ def cancel_buyer_request(
 def match_sellers(request: MatchingRequest):
     """
     Advanced matching engine:
-    1. Excludes out-of-stock and inactive listings.
-    2. Sorts candidates by localized proximity and farm-gate unit price.
-    3. Prefers verified sellers and provides transparency on fulfillment and shortfall.
+    1. Normalizes units (e.g. quintals <-> quintal) and matches singular/plural forms.
+    2. Performs exact-then-flexible keyword matching for products.
+    3. Excludes out-of-stock and inactive listings.
+    4. Sorts candidates by localized proximity and farm-gate unit price.
+    5. Checks verified seller status and supplements from active MSME producer capacities.
     """
+    clean_prod = request.product_name.strip()
+    norm_unit = normalize_unit(request.unit)
+    unit_variants = {norm_unit, request.unit.strip().lower()}
+    if norm_unit.endswith("s"):
+        unit_variants.add(norm_unit[:-1])
+    else:
+        unit_variants.add(norm_unit + "s")
+    unit_regex = "^(" + "|".join(re.escape(u) for u in unit_variants) + ")$"
+
     query: Dict[str, Any] = {
         "product_name": {
-            "$regex": f"^{re.escape(request.product_name.strip())}$",
+            "$regex": f"^{re.escape(clean_prod)}$",
             "$options": "i"
         },
         "unit": {
-            "$regex": f"^{re.escape(request.unit.strip())}$",
+            "$regex": unit_regex,
             "$options": "i"
         },
         "quantity": {"$gt": 0},
@@ -1397,6 +1811,14 @@ def match_sellers(request: MatchingRequest):
     }
 
     all_candidates = list(listings_collection.find(query).sort("price", ASCENDING))
+
+    # If exact product name returned nothing, try fuzzy/contains matching
+    if not all_candidates:
+        query["product_name"] = {
+            "$regex": re.escape(clean_prod),
+            "$options": "i"
+        }
+        all_candidates = list(listings_collection.find(query).sort("price", ASCENDING))
 
     # Cross-reference seller verification status
     seller_ids = [c.get("seller_id") for c in all_candidates if c.get("seller_id")]
@@ -1445,23 +1867,73 @@ def match_sellers(request: MatchingRequest):
             loc = request.location.strip().lower()
             is_local = loc in listing.get("state", "").lower() or loc in listing.get("village", "").lower()
 
+        seller_name = listing.get("seller_name", "Rural Producer")
+        loc_str = listing.get("location") or f"{listing.get('village', '')}, {listing.get('state', '')}".strip(", ")
+
         matches.append({
             "listing_id": str(listing["_id"]),
+            "id": str(listing["_id"]),
             "seller_id": listing.get("seller_id"),
-            "seller_name": listing.get("seller_name", "Rural Producer"),
+            "seller_name": seller_name,
+            "name": seller_name,
+            "owner": seller_name,
             "is_verified": bool(listing.get("is_verified", False)),
             "available_quantity": quantity_to_take,
+            "capacity": quantity_to_take,
             "unit": listing.get("unit"),
             "price": price_per_unit,
+            "rating": 4.8 if listing.get("is_verified") else 4.6,
             "subtotal": allocation_cost,
             "state": listing.get("state", ""),
             "village": listing.get("village", ""),
+            "location": loc_str,
             "is_local_match": is_local
         })
 
         matched_quantity += quantity_to_take
         total_estimated_cost += allocation_cost
         remaining_quantity -= quantity_to_take
+
+    # Fallback to MSME profiles if shortfall remains
+    if remaining_quantity > 0:
+        msme_query = {
+            "products": {"$regex": re.escape(clean_prod), "$options": "i"},
+            "capacity": {"$gt": 0}
+        }
+        msme_candidates = list(msme_profiles_collection.find(msme_query))
+        existing_seller_ids = {m.get("seller_id") for m in matches if m.get("seller_id")}
+        for msme in msme_candidates:
+            if remaining_quantity <= 0:
+                break
+            if msme.get("user_id") in existing_seller_ids:
+                continue
+            cap = float(msme.get("capacity", 0))
+            if cap <= 0:
+                continue
+            qty_take = min(cap, remaining_quantity)
+            loc_str = f"{msme.get('village', '')}, {msme.get('state', '')}".strip(", ")
+            b_name = msme.get("business_name", "Rural Producer")
+            matches.append({
+                "listing_id": f"msme-{msme.get('user_id', uuid.uuid4().hex[:6])}",
+                "id": f"msme-{msme.get('user_id', uuid.uuid4().hex[:6])}",
+                "seller_id": msme.get("user_id"),
+                "seller_name": b_name,
+                "name": b_name,
+                "owner": b_name,
+                "is_verified": True,
+                "available_quantity": qty_take,
+                "capacity": qty_take,
+                "unit": msme.get("capacity_unit", request.unit),
+                "price": 0.0,
+                "rating": 4.7,
+                "subtotal": 0.0,
+                "state": msme.get("state", ""),
+                "village": msme.get("village", ""),
+                "location": loc_str,
+                "is_local_match": bool(request.location and request.location.lower() in loc_str.lower())
+            })
+            matched_quantity += qty_take
+            remaining_quantity -= qty_take
 
     is_fulfilled = matched_quantity >= request.required_quantity
     shortfall = max(0.0, request.required_quantity - matched_quantity)
@@ -1477,14 +1949,18 @@ def match_sellers(request: MatchingRequest):
 
     return {
         "product_name": request.product_name,
+        "product": request.product_name,
         "required_quantity": request.required_quantity,
+        "requiredQuantity": request.required_quantity,
         "matched_quantity": round(matched_quantity, 2),
+        "matchedQuantity": round(matched_quantity, 2),
         "shortfall": round(shortfall, 2),
         "unit": request.unit,
         "is_fulfilled": is_fulfilled,
         "estimated_total_cost": round(total_estimated_cost, 2),
         "match_explanation": explanation,
-        "matches": matches
+        "matches": matches,
+        "suppliers": matches
     }
 
 
@@ -1501,30 +1977,41 @@ def sanitize_bulk_request(doc: Dict[str, Any], viewer_uid: Optional[str] = None)
 
     sanitized = {
         "_id": doc.get("_id"),
+        "id": doc.get("id", str(doc.get("_id", ""))),
         "product_name": doc.get("product_name"),
+        "product": doc.get("product_name"),
+        "category": doc.get("category", "Agriculture"),
         "required_quantity": doc.get("required_quantity"),
+        "quantity": doc.get("required_quantity"),
         "unit": doc.get("unit"),
         "delivery_location": doc.get("delivery_location"),
+        "location": doc.get("delivery_location"),
         "target_price": doc.get("target_price"),
         "needed_by": doc.get("needed_by"),
+        "deadline": doc.get("needed_by"),
         "notes": doc.get("notes"),
-        "status": doc.get("status"),
+        "description": doc.get("notes"),
+        "status": doc.get("status", "open").capitalize(),
         "matched_quantity": doc.get("matched_quantity"),
         "is_fulfilled": doc.get("is_fulfilled"),
         "total_estimated_cost": doc.get("total_estimated_cost"),
         "created_at": doc.get("created_at"),
-        "offers_count": len(doc.get("offers", []))
+        "createdAt": doc.get("created_at"),
+        "offers_count": len(doc.get("offers", [])),
+        "interests": doc.get("offers", [])
     }
 
     if is_owner:
         sanitized["buyer_id"] = doc.get("buyer_id")
         sanitized["buyer_name"] = doc.get("buyer_name")
+        sanitized["buyer"] = doc.get("buyer_name")
         sanitized["buyer_email"] = doc.get("buyer_email")
         sanitized["allocations"] = doc.get("allocations", [])
         sanitized["offers"] = doc.get("offers", [])
         sanitized["dispatched_request_ids"] = doc.get("dispatched_request_ids", [])
     else:
         sanitized["buyer_name"] = "Verified Bulk Buyer"
+        sanitized["buyer"] = "Verified Bulk Buyer"
         if viewer_uid:
             sanitized["my_offers"] = [
                 o for o in doc.get("offers", [])
@@ -1553,9 +2040,10 @@ def create_bulk_request(
     now = datetime.now(timezone.utc)
     bulk_doc = {
         "buyer_id": user["uid"],
-        "buyer_name": user.get("name", "Bulk Buyer"),
+        "buyer_name": bulk_in.buyer_name or user.get("name", "Bulk Buyer"),
         "buyer_email": user.get("email", ""),
         "product_name": bulk_in.product_name.strip(),
+        "category": bulk_in.category or "Agriculture",
         "required_quantity": bulk_in.required_quantity,
         "unit": bulk_in.unit.strip(),
         "delivery_location": bulk_in.delivery_location or "",
@@ -1578,6 +2066,8 @@ def create_bulk_request(
     reserved_matches = []
     if bulk_in.auto_match_and_dispatch and match_result["matches"]:
         for m in match_result["matches"]:
+            if str(m.get("listing_id", "")).startswith("msme-"):
+                continue
             listing_obj_id = parse_object_id(m["listing_id"], "Listing")
             qty_to_reserve = float(m["available_quantity"])
 
