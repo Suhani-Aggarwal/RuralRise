@@ -1,0 +1,183 @@
+
+.msme-profile-page {
+  min-height: 100vh;
+  background: #F0F3EF;
+  color: #25332D;
+  padding-bottom: 50px;
+}
+
+.profile-navbar {
+  background: #173D32;
+  color: white;
+  padding: 20px 7%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.profile-navbar h2 {
+  margin: 0;
+  color: #D0AD68;
+  font-family: Georgia, serif;
+}
+
+.profile-navbar span {
+  color: #E9E4D7;
+  font-size: 12px;
+  letter-spacing: 2px;
+}
+
+.profile-container {
+  max-width: 850px;
+  margin: 45px auto;
+  padding: 0 20px;
+}
+
+.profile-heading {
+  text-align: center;
+  margin-bottom: 35px;
+}
+
+.profile-label {
+  color: #A4864D;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 2px;
+}
+
+.profile-heading h1 {
+  color: #173D32;
+  font-family: Georgia, serif;
+  font-size: 38px;
+  margin: 12px 0;
+}
+
+.profile-heading p {
+  color: #69766D;
+  line-height: 1.7;
+}
+
+.msme-form {
+  background: white;
+  padding: 35px;
+  border-radius: 15px;
+  border: 1px solid #DCE4DA;
+  box-shadow: 0 12px 35px rgba(23, 61, 50, 0.07);
+}
+
+.form-section {
+  margin-bottom: 30px;
+  padding-bottom: 25px;
+  border-bottom: 1px solid #E7ECE5;
+}
+
+.form-section h3 {
+  color: #173D32;
+  font-family: Georgia, serif;
+  margin-bottom: 20px;
+  font-size: 21px;
+}
+
+.form-section label {
+  display: block;
+  margin: 15px 0 8px;
+  color: #34483D;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.form-section input,
+.form-section textarea,
+.form-section select {
+  width: 100%;
+  padding: 13px 14px;
+  border: 1px solid #D6DED5;
+  border-radius: 8px;
+  background: #FAFCF9;
+  color: #25332D;
+  font-size: 14px;
+  outline: none;
+}
+
+.form-section textarea {
+  min-height: 95px;
+  resize: vertical;
+}
+
+.form-section input:focus,
+.form-section textarea:focus,
+.form-section select:focus {
+  border-color: #B69A60;
+  box-shadow: 0 0 0 3px rgba(182, 154, 96, 0.12);
+}
+
+.form-section small {
+  display: block;
+  margin-top: 7px;
+  color: #849187;
+}
+
+.profile-submit {
+  width: 100%;
+  padding: 15px;
+  background: #173D32;
+  color: #D0AD68;
+  border: none;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: 0.3s;
+}
+
+.profile-submit:hover {
+  background: #B69A60;
+  color: #173D32;
+}
+
+.profile-success {
+  padding: 13px;
+  margin-bottom: 18px;
+  background: #E5F3E8;
+  color: #173D32;
+  border-radius: 8px;
+  text-align: center;
+  font-weight: 600;
+}
+
+.profile-note {
+  margin-top: 25px;
+  padding: 22px;
+  background: #E5EBE3;
+  border-left: 4px solid #B69A60;
+  border-radius: 8px;
+}
+
+.profile-note strong {
+  color: #173D32;
+}
+
+.profile-note p {
+  color: #66746A;
+  margin: 8px 0 0;
+  line-height: 1.6;
+}
+
+@media (max-width: 600px) {
+  .profile-navbar {
+    padding: 18px;
+    gap: 10px;
+  }
+
+  .profile-navbar span {
+    font-size: 9px;
+  }
+
+  .profile-heading h1 {
+    font-size: 29px;
+  }
+
+  .msme-form {
+    padding: 22px;
+  }
+}
