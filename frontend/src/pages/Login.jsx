@@ -25,8 +25,23 @@ function Login() {
     setLoading(true);
 
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      // Firebase Authentication
+      const userCredential = await signInWithEmailAndPassword(
+        auth,
+        email,
+        password
+      );
 
+      // Get authenticated user
+      const user = userCredential.user;
+
+      // Generate Firebase ID Token
+      const idToken = await user.getIdToken();
+
+      // Print token in browser console
+      console.log("FIREBASE ID TOKEN:", idToken);
+
+      // Navigate to dashboard
       navigate("/dashboard");
 
     } catch (error) {
