@@ -1,3 +1,4 @@
+
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
@@ -16,3 +17,13 @@ const app = initializeApp(firebaseConfig);
 
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+window.getRuralRiseToken = async () => {
+  const user = auth.currentUser;
+
+  if (!user) {
+    console.log("Please log in first.");
+    return;
+  }
+
+  return await user.getIdToken(true);
+};
