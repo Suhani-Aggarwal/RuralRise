@@ -8,7 +8,7 @@ import "./Dashboard.css";
 
 function Dashboard() {
   const navigate = useNavigate();
-  const { user, userProfile, switchRole } = useAuth();
+  const { user, userProfile } = useAuth();
 
   const [myProducts, setMyProducts] = useState([]);
   const [bulkOpportunities, setBulkOpportunities] = useState(0);
@@ -222,14 +222,6 @@ function Dashboard() {
           <Link to="/msme-profile" className="sidebar-link">
             <span>♧</span> MSME Profile
           </Link>
-
-          <Link
-  to="/buyer-dashboard"
-  className="sidebar-link"
-  onClick={() => switchRole("buyer")}
->
-  <span>⇄</span> Switch to Buyer
-</Link>
         </div>
 
         <div className="sidebar-bottom">
