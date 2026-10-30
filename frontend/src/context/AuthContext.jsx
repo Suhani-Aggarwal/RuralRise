@@ -23,6 +23,16 @@ export function AuthProvider({ children }) {
     localStorage.setItem("activeRole", normalizedRole);
   };
 
+  // Save the role selected when creating a new account
+  const setRegisteredRole = (role) => {
+    const normalizedRole = String(role).trim().toLowerCase();
+
+    if (!["buyer", "seller", "worker"].includes(normalizedRole)) return;
+
+    setActiveRole(normalizedRole);
+    localStorage.setItem("activeRole", normalizedRole);
+  };
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
@@ -70,7 +80,14 @@ export function AuthProvider({ children }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, userProfile, activeRole, switchRole, loading }}
+      value={{
+        user,
+        userProfile,
+        activeRole,
+        switchRole,
+        setRegisteredRole,
+        loading
+      }}
     >
       {children}
     </AuthContext.Provider>

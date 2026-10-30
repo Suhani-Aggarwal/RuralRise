@@ -7,10 +7,12 @@ import {
 } from "firebase/auth";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "../firebase/firebase";
+import { useAuth } from "../context/AuthContext";
 import "./Auth.css";
 
 function Register() {
   const navigate = useNavigate();
+  const { setRegisteredRole } = useAuth();
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -51,12 +53,20 @@ function Register() {
         updatedAt: serverTimestamp()
       });
 
+      const selectedRole = role.trim().toLowerCase();
+
+      // Save the role selected during registration
+      setRegisteredRole(selectedRole);
+
       const roleRoutes = {
         buyer: "/buyer-dashboard",
         seller: "/seller-dashboard",
         worker: "/worker-dashboard",
       };
-      navigate(roleRoutes[role] || "/my-dashboard", { replace: true });
+
+      navigate(roleRoutes[selectedRole] || "/my-dashboard", {
+        replace: true
+      });
 
     } catch (error) {
       console.error("Registration error:", error);
