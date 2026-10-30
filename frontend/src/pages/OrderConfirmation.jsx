@@ -1,17 +1,67 @@
 
 import { Link, useLocation } from "react-router-dom";
 import "./OrderConfirmation.css";
+import { useMemo, useEffect } from "react";
+import { useAuth } from "../context/AuthContext";
 
 function OrderConfirmation() {
   const location = useLocation();
-
   const order = location.state;
+  const { user } = useAuth();
 
-  if (!order) {
+  const orderId = useMemo(
+    () => `RR-${Date.now().toString().slice(-8)}`,
+    []
+  );
+  useEffect(() => {
+  if (!order || !user?.uid) return;
+
+  try {
+    const existingOrders = JSON.parse(
+      localStorage.getItem("ruralrise_orders") || "[]"
+    );
+
+    // Prevent saving the same order twice
+    const alreadySaved = existingOrders.some(
+      (savedOrder) => savedOrder.orderId === orderId
+    );
+
+    if (alreadySaved) return;
+
+    const savedOrder = {
+      orderId,
+      buyerUid: user.uid,
+      buyerName: order.formData?.buyer_name || user.displayName || "Buyer",
+      productName: order.product?.name || "Product",
+      quantity: Number(order.quantity) || 0,
+      unit: order.product?.unit || order.product?.priceUnit || "",
+      estimatedPrice: Number(order.estimatedPrice) || 0,
+      fulfilmentType:
+        order.fulfilmentType === "single"
+          ? "Single-Seller"
+          : order.fulfilmentType === "multiple"
+            ? "Multi-Seller"
+            : "Partial Fulfilment",
+      sellerAllocations: order.sellerAllocations || [],
+      status: "Pending",
+      createdAt: new Date().toISOString(),
+    };
+
+    localStorage.setItem(
+      "ruralrise_orders",
+      JSON.stringify([...existingOrders, savedOrder])
+    );
+
+  } catch (error) {
+    console.error("Unable to save order:", error);
+  }
+}, [order, orderId, user]);
+
+  if (!order || !order.product || !order.formData) {
     return (
       <div className="confirmation-not-found">
         <h2>No order information found</h2>
-        <p>Please create an order first.</p>
+        <p>Please create an order request first.</p>
         <Link to="/marketplace">Go to Marketplace</Link>
       </div>
     );
@@ -20,12 +70,27 @@ function OrderConfirmation() {
   const {
     product,
     formData,
-    quantity,
-    estimatedPrice,
-    sellerAllocations,
-    fulfilledQuantity,
-    isFullyFulfilled,
+    quantity = 0,
+    estimatedPrice = 0,
+    sellerAllocations = [],
+    fulfilledQuantity = 0,
+    isFullyFulfilled = false,
+    fulfilmentType,
   } = order;
+
+  const safeAllocations = Array.isArray(sellerAllocations)
+    ? sellerAllocations
+    : [];
+
+  const totalQuantity = Number(fulfilledQuantity) || 0;
+  const requestedQuantity = Number(quantity) || 0;
+  const totalPrice = Number(estimatedPrice) || 0;
+
+  const displayFulfilmentType =
+    fulfilmentType ||
+    (safeAllocations.length > 1
+      ? "Multi-Seller Fulfilment"
+      : "Single-Seller Fulfilment");
 
   return (
     <div className="confirmation-page">
@@ -54,8 +119,8 @@ function OrderConfirmation() {
         <h1>Order Request Prepared!</h1>
 
         <p className="confirmation-intro">
-          Your order details have been recorded in this
-          frontend demo. Here's your order summary.
+          Your order request has been prepared successfully.
+          Review the details and proposed seller contributions below.
         </p>
 
         <section className="confirmation-card">
@@ -71,44 +136,47 @@ function OrderConfirmation() {
             </span>
           </div>
 
+          <div className="confirmation-order-id">
+            <small>Order Reference</small>
+            <strong>{orderId}</strong>
+          </div>
+
           <div className="confirmation-details">
 
             <div>
               <small>Buyer Name</small>
-              <strong>{formData.buyer_name}</strong>
+              <strong>{formData.buyer_name || "Not provided"}</strong>
             </div>
 
             <div>
               <small>Required Quantity</small>
               <strong>
-                {quantity} {product.unit}
+                {requestedQuantity} {product.unit || product.priceUnit || ""}
               </strong>
             </div>
 
             <div>
               <small>Delivery Location</small>
-              <strong>{formData.delivery_location}</strong>
+              <strong>
+                {formData.delivery_location || "Not provided"}
+              </strong>
             </div>
 
             <div>
               <small>Contact Number</small>
-              <strong>{formData.contact}</strong>
+              <strong>{formData.contact || "Not provided"}</strong>
             </div>
 
             <div>
               <small>Estimated Product Cost</small>
               <strong>
-                ₹{estimatedPrice.toLocaleString("en-IN")}
+                ₹{totalPrice.toLocaleString("en-IN")}
               </strong>
             </div>
 
             <div>
-              <small>Fulfilment Status</small>
-              <strong>
-                {isFullyFulfilled
-                  ? "Sample stock sufficient"
-                  : "Additional sellers needed"}
-              </strong>
+              <small>Fulfilment Type</small>
+              <strong>{displayFulfilmentType}</strong>
             </div>
 
           </div>
@@ -124,33 +192,48 @@ function OrderConfirmation() {
 
           <h3>Proposed Seller Contributions</h3>
 
-          {sellerAllocations.map((seller) => (
-            <div
-              className="confirmation-seller"
-              key={seller.name}
-            >
-              <div>
-                <strong>{seller.name}</strong>
-                <small>{seller.location}</small>
-              </div>
+          {safeAllocations.length > 0 ? (
+            safeAllocations.map((seller, index) => (
+              <div
+                className="confirmation-seller"
+                key={`${seller.name}-${index}`}
+              >
+                <div>
+                  <strong>{seller.name}</strong>
+                  <small>{seller.location || "Location not provided"}</small>
+                </div>
 
-              <strong>
-                {seller.allocated} {product.unit}
-              </strong>
-            </div>
-          ))}
+                <strong>
+                  {Number(seller.allocated) || 0}{" "}
+                  {product.unit || product.priceUnit || ""}
+                </strong>
+              </div>
+            ))
+          ) : (
+            <p>No seller allocations are available.</p>
+          )}
 
           <div className="confirmation-total">
             <strong>Combined Contribution</strong>
             <strong>
-              {fulfilledQuantity} {product.unit}
+              {totalQuantity} {product.unit || product.priceUnit || ""}
+            </strong>
+          </div>
+
+          <div className="confirmation-fulfilment-status">
+            <small>Stock Availability</small>
+            <strong>
+              {isFullyFulfilled
+                ? "Full quantity available"
+                : "Partial quantity available"}
             </strong>
           </div>
 
           {!isFullyFulfilled && (
             <p className="confirmation-warning">
-              The sample sellers cannot fulfil the entire
-              order. Additional sellers would be required.
+              The currently available sellers cannot fulfil the
+              complete requested quantity. Additional sellers
+              or stock may be required.
             </p>
           )}
 
@@ -159,10 +242,9 @@ function OrderConfirmation() {
         <div className="confirmation-notice">
           <strong>What happens next?</strong>
           <p>
-            In the final system, RuralRise will send the
-            request to the selected sellers. They can review
-            their proposed contributions before the order
-            is confirmed.
+            In the final RuralRise system, this request will be
+            shared with the selected MSMEs. They can review their
+            proposed contributions and respond to the buyer.
           </p>
         </div>
 
@@ -177,8 +259,8 @@ function OrderConfirmation() {
         </div>
 
         <p className="confirmation-disclaimer">
-          Frontend demonstration only. No actual order has
-          been saved, sent to sellers or confirmed yet.
+          Frontend demonstration only. This request has not
+          been saved to the database or sent to sellers.
         </p>
 
       </main>

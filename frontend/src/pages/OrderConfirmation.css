@@ -289,3 +289,52 @@
     flex-direction: column;
   }
 }
+
+
+.confirmation-order-id {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 15px;
+  padding: 14px 16px;
+  margin-bottom: 25px;
+  background: #f0f3ef;
+  border-radius: 9px;
+}
+
+.confirmation-order-id small {
+  color: #78857b;
+}
+
+.confirmation-order-id strong {
+  color: #173d32;
+  letter-spacing: 1px;
+  overflow-wrap: anywhere;
+}
+
+.confirmation-fulfilment-status {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 15px;
+  padding-top: 18px;
+  margin-top: 15px;
+  border-top: 1px solid #e2e8e1;
+}
+
+.confirmation-fulfilment-status small {
+  color: #78857b;
+}
+
+.confirmation-fulfilment-status strong {
+  color: #245b38;
+  text-align: right;
+}
+
+@media (max-width: 600px) {
+  .confirmation-order-id,
+  .confirmation-fulfilment-status {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

@@ -1,0 +1,126 @@
+
+/* Buyer Dashboard - Additional Styles */
+
+.buyer-orders-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 15px;
+}
+
+.buyer-view-all {
+  color: #A3864E;
+  font-size: 12px;
+  font-weight: bold;
+  text-decoration: none;
+}
+
+.buyer-view-all:hover {
+  color: #173D32;
+}
+
+.buyer-orders-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.buyer-order-card {
+  background: #FFFFFF;
+  border: 1px solid #E0E7DF;
+  border-radius: 13px;
+  padding: 22px 25px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  transition: 0.3s ease;
+}
+
+.buyer-order-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 20px rgba(23, 61, 50, 0.07);
+}
+
+.buyer-order-id {
+  color: #A3864E;
+  font-size: 10px;
+  font-weight: bold;
+  letter-spacing: 1px;
+}
+
+.buyer-order-info h3 {
+  color: #173D32;
+  font-family: Georgia, serif;
+  font-size: 18px;
+  margin: 8px 0;
+}
+
+.buyer-order-info p {
+  color: #849188;
+  font-size: 12px;
+  margin-top: 5px;
+}
+
+.buyer-order-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.buyer-order-right > strong {
+  color: #173D32;
+  font-size: 17px;
+}
+
+.buyer-order-status {
+  padding: 7px 13px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: bold;
+}
+
+.buyer-order-status.pending {
+  background: #FFF3DC;
+  color: #8A651D;
+}
+
+.buyer-order-status.completed {
+  background: #DCEBDD;
+  color: #245B38;
+}
+
+.buyer-empty-button {
+  display: inline-block;
+  margin-top: 18px;
+  padding: 11px 18px;
+  background: #173D32;
+  color: #D0AD68;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: bold;
+  text-decoration: none;
+}
+
+.buyer-empty-button:hover {
+  background: #285343;
+  color: #FFFFFF;
+}
+
+@media (max-width: 600px) {
+  .buyer-order-card {
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 20px;
+  }
+
+  .buyer-order-right {
+    align-items: flex-start;
+  }
+
+  .buyer-orders-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

@@ -30,17 +30,63 @@ function AddProduct() {
     setMessage("");
   }
 
-  function handleSubmit(e) {
-    e.preventDefault();
+ 
+function handleSubmit(e) {
+  e.preventDefault();
 
-    // Frontend demonstration only.
-    // Later, we'll send this data to POST /listings/
-    console.log("Product details:", formData);
+  const quantity = Number(formData.quantity);
+  const price = Number(formData.price);
 
-    setMessage(
-      "Product details captured! Backend integration will be connected next."
-    );
+  if (quantity <= 0 || price <= 0) {
+    setMessage("Quantity and price must be greater than zero.");
+    return;
   }
+
+  try {
+    const existingProducts = JSON.parse(
+      localStorage.getItem("ruralrise_products") || "[]"
+    );
+
+    const newProduct = {
+      ...formData,
+      id: Date.now(),
+      quantity,
+      price,
+      priceValue: price,
+      seller: "RuralRise Seller",
+      location: `${formData.village}, ${formData.state}`,
+      createdAt: new Date().toISOString(),
+    };
+
+    const updatedProducts = [...existingProducts, newProduct];
+
+    localStorage.setItem(
+      "ruralrise_products",
+      JSON.stringify(updatedProducts)
+    );
+
+    setMessage("Product published successfully!");
+
+    setFormData({
+      product_name: "",
+      category: "",
+      state: "",
+      village: "",
+      quantity: "",
+      unit: "",
+      price: "",
+      price_unit: "",
+      description: "",
+      image_url: "",
+    });
+
+    console.log("Published product:", newProduct);
+  } catch (error) {
+    console.error("Error saving product:", error);
+    setMessage("Unable to publish product. Please try again.");
+  }
+}
+
 
   return (
     <div className="add-product-page">

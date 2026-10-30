@@ -181,3 +181,39 @@
     padding: 22px;
   }
 }
+
+.profile-existing {
+  background: #e5f3e8;
+  color: #173d32;
+  padding: 16px 20px;
+  margin-bottom: 20px;
+  border-radius: 8px;
+  border-left: 4px solid #4b8a5d;
+}
+
+.profile-existing p {
+  margin: 6px 0 0;
+  font-size: 13px;
+}
+
+.profile-delete {
+  width: 100%;
+  margin-top: 12px;
+  padding: 13px;
+  background: white;
+  color: #b23b3b;
+  border: 1px solid #d8aaaa;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.profile-delete:hover {
+  background: #fff0f0;
+}
+
+.profile-error {
+  background: #fdeaea;
+  color: #a52a2a;
+}
