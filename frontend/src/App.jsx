@@ -45,25 +45,26 @@ function App() {
             <Route path="/product/:id" element={<ProductDetails />} />
             <Route path="/matching" element={<Matching />} />
 
-            {/* Seller Routes */}
-            <Route element={<RoleProtectedRoute allowedRoles={["seller"]} />}>
-              <Route path="/seller-dashboard" element={<Dashboard />} />
-              <Route path="/add-product" element={<AddProduct />} />
-              <Route path="/msme-profile" element={<MSMEProfile />} />
-            </Route>
+            {/* Buyer and Seller Dashboard Routes */}
+<Route element={<RoleProtectedRoute allowedRoles={["buyer", "seller"]} />}>
+  <Route path="/seller-dashboard" element={<Dashboard />} />
+  <Route path="/buyer-dashboard" element={<BuyerDashboard />} />
+</Route>
 
-            {/* Buyer Routes */}
-            <Route element={<RoleProtectedRoute allowedRoles={["buyer"]} />}>
-              <Route path="/buyer-dashboard" element={<BuyerDashboard />} />
-              <Route path="/order-request/:id" element={<OrderRequest />} />
-              <Route
-                path="/order-confirmation"
-                element={<OrderConfirmation />}
-              />
-              <Route path="/my-orders" element={<MyOrders />} />
-              <Route path="/payment" element={<Payment />} />
-              <Route path="/payment-result" element={<PaymentResult />} />
-            </Route>
+{/* Seller-only Routes */}
+<Route element={<RoleProtectedRoute allowedRoles={["seller"]} />}>
+  <Route path="/add-product" element={<AddProduct />} />
+  <Route path="/msme-profile" element={<MSMEProfile />} />
+</Route>
+
+{/* Buyer-only Routes */}
+<Route element={<RoleProtectedRoute allowedRoles={["buyer"]} />}>
+  <Route path="/order-request/:id" element={<OrderRequest />} />
+  <Route path="/order-confirmation" element={<OrderConfirmation />} />
+  <Route path="/my-orders" element={<MyOrders />} />
+  <Route path="/payment" element={<Payment />} />
+  <Route path="/payment-result" element={<PaymentResult />} />
+</Route>
 
             {/* Worker Routes */}
             <Route element={<RoleProtectedRoute allowedRoles={["worker"]} />}>

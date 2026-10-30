@@ -9,7 +9,29 @@ const AuthContext = createContext();
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
+  const [activeRole, setActiveRole] = useState(
+    () => localStorage.getItem("activeRole") || ""
+  );
   const [loading, setLoading] = useState(true);
+
+  const switchRole = (role) => {
+    const normalizedRole = String(role).trim().toLowerCase();
+
+    if (!["buyer", "seller"].includes(normalizedRole)) return;
+
+    setActiveRole(normalizedRole);
+    localStorage.setItem("activeRole", normalizedRole);
+  };
+
+  // Save the role selected when creating a new account
+  const setRegisteredRole = (role) => {
+    const normalizedRole = String(role).trim().toLowerCase();
+
+    if (!["buyer", "seller", "worker"].includes(normalizedRole)) return;
+
+    setActiveRole(normalizedRole);
+    localStorage.setItem("activeRole", normalizedRole);
+  };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -22,11 +44,32 @@ export function AuthProvider({ children }) {
           const userSnap = await getDoc(userRef);
 
           if (userSnap.exists()) {
-            setUserProfile(userSnap.data());
+            const profile = userSnap.data();
+            setUserProfile(profile);
+
+            const savedRole = localStorage.getItem("activeRole");
+
+            if (
+              savedRole &&
+              ["buyer", "seller"].includes(savedRole.toLowerCase())
+            ) {
+              setActiveRole(savedRole.toLowerCase());
+            } else {
+              const initialRole = String(profile.role || "")
+                .trim()
+                .toLowerCase();
+
+              setActiveRole(initialRole);
+              localStorage.setItem("activeRole", initialRole);
+            }
           }
         } catch (error) {
           console.error("Error fetching user profile:", error);
         }
+      } else {
+        setUserProfile(null);
+        setActiveRole("");
+        localStorage.removeItem("activeRole");
       }
 
       setLoading(false);
@@ -36,7 +79,16 @@ export function AuthProvider({ children }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, userProfile, loading }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        userProfile,
+        activeRole,
+        switchRole,
+        setRegisteredRole,
+        loading
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

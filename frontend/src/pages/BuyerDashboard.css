@@ -124,3 +124,31 @@
     flex-direction: column;
   }
 }
+/* Buyer dashboard switch button and sidebar */
+.sidebar-bottom button.sidebar-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid #b8d2bd;
+  border-radius: 9px;
+  background: #e0eee3;
+  color: #173f2b !important;
+  font-size: 14px;
+  font-weight: 800;
+  text-align: left;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.sidebar-bottom button.sidebar-link:hover {
+  background: #ffffff;
+  color: #173f2b !important;
+  transform: translateX(3px);
+}
+
+.sidebar-bottom button.sidebar-link span {
+  color: #245638;
+  font-size: 18px;
+}

@@ -37,6 +37,7 @@ function BuyerDashboard() {
 
     loadOrders();
     window.addEventListener("storage", loadOrders);
+    window.addEventListener("ruralrise-orders-updated", loadOrders);
 
     return () => window.removeEventListener("storage", loadOrders);
   }, [user?.uid]);

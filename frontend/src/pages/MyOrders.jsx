@@ -32,10 +32,13 @@ function MyOrders() {
 
     loadOrders();
 
-    // Refresh when localStorage changes in another tab.
     window.addEventListener("storage", loadOrders);
+    window.addEventListener("ruralrise-orders-updated", loadOrders);
 
-    return () => window.removeEventListener("storage", loadOrders);
+    return () => {
+      window.removeEventListener("storage", loadOrders);
+      window.removeEventListener("ruralrise-orders-updated", loadOrders);
+    };
   }, [user?.uid]);
 
   function handlePayment(order) {
@@ -66,12 +69,19 @@ function MyOrders() {
       ) : (
         <div className="my-orders-list">
           {orders.slice().reverse().map((order) => {
-            const paymentStatus =
-              order.paymentStatus || "Payment Pending";
+            const paymentStatus = order.paymentStatus || "Payment Pending";
 
             const paymentCompleted =
               paymentStatus === "Demo Successful" ||
               paymentStatus === "Pay on Delivery";
+
+            const completedContributions = (
+              order.sellerAllocations || []
+            ).filter((allocation) => allocation.status === "Completed").length;
+
+            const totalContributions = (
+              order.sellerAllocations || []
+            ).length;
 
             return (
               <article className="my-order-card" key={order.orderId}>
@@ -79,11 +89,9 @@ function MyOrders() {
                   <span>{order.orderId}</span>
                   <h2>{order.productName}</h2>
 
-                  <p>
-                    Quantity: {order.quantity} {order.unit}
-                  </p>
-
+                  <p>Quantity: {order.quantity} {order.unit}</p>
                   <p>Fulfilment: {order.fulfilmentType}</p>
+                  <p>Delivery: {order.deliveryLocation || "Not provided"}</p>
 
                   <p>
                     Date:{" "}
@@ -97,17 +105,19 @@ function MyOrders() {
                       <strong>Order Status:</strong>{" "}
                       {order.status || "Pending"}
                     </p>
-
+                    {totalContributions > 0 && (
+                      <p>
+                        <strong>Seller contributions:</strong>{" "}
+                        {completedContributions}/{totalContributions} completed
+                      </p>
+                    )}
                     <p>
-                      <strong>Payment Status:</strong>{" "}
-                      {paymentStatus}
+                      <strong>Payment Status:</strong> {paymentStatus}
                     </p>
-
                     <p>
                       <strong>Payment Method:</strong>{" "}
                       {order.paymentMethod || "Not selected"}
                     </p>
-
                     {order.transactionId && (
                       <p>
                         <strong>Demo Transaction ID:</strong>{" "}
@@ -129,8 +139,7 @@ function MyOrders() {
 
                 <div className="my-order-summary">
                   <strong>
-                    ₹
-                    {Number(order.estimatedPrice || 0).toLocaleString("en-IN")}
+                    ₹{Number(order.estimatedPrice || 0).toLocaleString("en-IN")}
                   </strong>
                   <span>{order.status || "Pending"}</span>
                 </div>
