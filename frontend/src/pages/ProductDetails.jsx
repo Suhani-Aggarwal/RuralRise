@@ -1,10 +1,9 @@
 
 import { useParams, Link } from "react-router-dom";
+import { useEffect, useState } from "react";
 import "./ProductDetails.css";
 
-
-// Temporary sample data.
-// Later, we will fetch this from MongoDB through FastAPI.
+// Temporary demo products
 const sampleProducts = [
   {
     id: "1",
@@ -40,9 +39,35 @@ const sampleProducts = [
 
 function ProductDetails() {
   const { id } = useParams();
+  const [products, setProducts] = useState(sampleProducts);
 
-  const product = sampleProducts.find(
-    (item) => item.id === id
+  useEffect(() => {
+    const savedProducts = JSON.parse(
+      localStorage.getItem("ruralrise_products") || "[]"
+    );
+
+    const formattedProducts = savedProducts.map((product) => ({
+      id: String(product.id),
+      name: product.product_name,
+      category: product.category,
+      price: Number(product.price),
+      priceUnit: product.price_unit,
+      quantity: Number(product.quantity),
+      unit: product.unit,
+      location:
+        product.location ||
+        `${product.village}, ${product.state}`,
+      seller: product.seller || "RuralRise Seller",
+      description:
+        product.description || "No description available.",
+      image: product.image_url || "",
+    }));
+
+    setProducts([...sampleProducts, ...formattedProducts]);
+  }, []);
+
+  const product = products.find(
+    (item) => String(item.id) === String(id)
   );
 
   if (!product) {
@@ -56,7 +81,6 @@ function ProductDetails() {
 
   return (
     <div className="product-details-page">
-
       <nav className="details-navbar">
         <Link to="/" className="details-logo">
           ❋ RuralRise
@@ -69,19 +93,22 @@ function ProductDetails() {
       </nav>
 
       <main className="details-container">
-
         <Link to="/marketplace" className="back-link">
           ← Back to Marketplace
         </Link>
 
         <div className="details-layout">
-
           <div className="details-image">
-            <img src={product.image} alt={product.name} />
+            {product.image ? (
+              <img src={product.image} alt={product.name} />
+            ) : (
+              <div className="details-image-placeholder">
+                No image available
+              </div>
+            )}
           </div>
 
           <div className="details-info">
-
             <span className="details-category">
               {product.category}
             </span>
@@ -89,14 +116,16 @@ function ProductDetails() {
             <h1>{product.name}</h1>
 
             <div className="details-price">
-              ₹{product.price.toLocaleString("en-IN")}
-              <span> / {product.priceUnit.replace("per ", "")}</span>
+              ₹{Number(product.price).toLocaleString("en-IN")}
+              <span>
+                {" "}/ {String(product.priceUnit || "per unit").replace("per ", "")}
+              </span>
             </div>
 
             <div className="details-divider"></div>
 
             <p className="details-description">
-              {product.description}
+              {product.description || "No description available."}
             </p>
 
             <div className="details-meta">
@@ -129,7 +158,6 @@ function ProductDetails() {
               Interested in purchasing in bulk? Send a request
               to connect with the seller.
             </p>
-
           </div>
         </div>
       </main>

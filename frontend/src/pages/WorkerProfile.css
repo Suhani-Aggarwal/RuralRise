@@ -1,0 +1,100 @@
+
+.worker-profile-page {
+  min-height: 100vh;
+  background: #F0F3EF;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 40px 20px;
+}
+
+.worker-profile-card {
+  width: 100%;
+  max-width: 650px;
+  background: white;
+  padding: 40px;
+  border-radius: 16px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.06);
+}
+
+.worker-profile-eyebrow {
+  color: #B18B4A;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 2px;
+}
+
+.worker-profile-card h1 {
+  color: #173D32;
+  margin: 12px 0;
+}
+
+.worker-profile-description {
+  color: #68736C;
+  line-height: 1.6;
+  margin-bottom: 28px;
+}
+
+.worker-profile-card form {
+  display: flex;
+  flex-direction: column;
+}
+
+.worker-profile-card label {
+  color: #173D32;
+  font-weight: 600;
+  margin: 18px 0 8px;
+}
+
+.worker-profile-card input,
+.worker-profile-card textarea {
+  width: 100%;
+  padding: 13px;
+  border: 1px solid #DCE3DC;
+  border-radius: 8px;
+  font: inherit;
+  box-sizing: border-box;
+}
+
+.worker-profile-card input:focus,
+.worker-profile-card textarea:focus {
+  outline: none;
+  border-color: #B18B4A;
+}
+
+.worker-profile-card small {
+  color: #788078;
+  margin-top: 6px;
+}
+
+.worker-profile-card form button {
+  margin-top: 24px;
+  padding: 14px;
+  background: #173D32;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.worker-profile-back {
+  margin-top: 14px;
+  padding: 10px 0;
+  background: transparent;
+  border: none;
+  color: #173D32;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.worker-profile-message {
+  color: #173D32;
+  margin-top: 16px;
+}
+
+@media (max-width: 600px) {
+  .worker-profile-card {
+    padding: 25px 20px;
+  }
+}

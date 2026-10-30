@@ -51,7 +51,13 @@ function Register() {
         updatedAt: serverTimestamp()
       });
 
-      navigate("/dashboard");
+      if (role === "buyer") {
+  navigate("/buyer-dashboard");
+} else if (role === "worker") {
+  navigate("/worker-dashboard");
+} else {
+  navigate("/dashboard");
+}
 
     } catch (error) {
       console.error("Registration error:", error);

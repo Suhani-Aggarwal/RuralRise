@@ -1,8 +1,9 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import "./OrderRequest.css";
 
+// Temporary demo products
 const sampleProducts = [
   {
     id: "1",
@@ -10,7 +11,7 @@ const sampleProducts = [
     price: 2400,
     priceUnit: "per quintal",
     unit: "quintal",
-    available: 50,
+    available: 40,
   },
   {
     id: "2",
@@ -22,13 +23,41 @@ const sampleProducts = [
   },
 ];
 
+// Demo seller inventory for sample products
+const sampleSellers = [
+  {
+    name: "Ravi Kumar",
+    location: "Ludhiana, Punjab",
+    productName: "Organic Wheat",
+    available: 40,
+  },
+  {
+    name: "Aman Singh",
+    location: "Patiala, Punjab",
+    productName: "Organic Wheat",
+    available: 35,
+  },
+  {
+    name: "Gurpreet Kaur",
+    location: "Amritsar, Punjab",
+    productName: "Organic Wheat",
+    available: 25,
+  },
+  {
+    name: "Meera Devi",
+    location: "Jaipur, Rajasthan",
+    productName: "Handmade Pottery",
+    available: 100,
+  },
+];
+
 function OrderRequest() {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  const product = sampleProducts.find(
-    (item) => item.id === id
-  );
+  const [product, setProduct] = useState(null);
+  const [availableSellers, setAvailableSellers] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   const [formData, setFormData] = useState({
     quantity: "",
@@ -40,6 +69,90 @@ function OrderRequest() {
 
   const [message, setMessage] = useState("");
   const [submitted, setSubmitted] = useState(false);
+
+  // Load product and matching sellers
+  useEffect(() => {
+    try {
+      const savedProducts = JSON.parse(
+        localStorage.getItem("ruralrise_products") || "[]"
+      );
+
+      const formattedProducts = savedProducts.map((item) => ({
+        id: String(item.id),
+        name: item.product_name,
+        category: item.category,
+        price: Number(item.price),
+        priceUnit: item.price_unit || "per unit",
+        unit: item.unit || "units",
+        available: Number(item.quantity),
+        location:
+          item.location ||
+          `${item.village || ""}, ${item.state || ""}`,
+        seller: item.seller || "RuralRise Seller",
+        description: item.description || "",
+        image: item.image_url || "",
+      }));
+
+      const allProducts = [
+        ...sampleProducts,
+        ...formattedProducts,
+      ];
+
+      const foundProduct = allProducts.find(
+        (item) => String(item.id) === String(id)
+      );
+
+      setProduct(foundProduct || null);
+
+      if (foundProduct) {
+        // For demo products, use their matching demo sellers.
+        const isDemoProduct = sampleProducts.some(
+          (item) => String(item.id) === String(id)
+        );
+
+        if (isDemoProduct) {
+          const matchingDemoSellers = sampleSellers.filter(
+            (seller) =>
+              seller.productName.toLowerCase() ===
+              foundProduct.name.toLowerCase()
+          );
+
+          setAvailableSellers(matchingDemoSellers);
+        } else {
+          // For user-added products, find listings of the same product.
+          const matchingSavedSellers = savedProducts
+            .filter(
+              (item) =>
+                item.product_name?.trim().toLowerCase() ===
+                foundProduct.name.trim().toLowerCase()
+            )
+            .map((item) => ({
+              name: item.seller || "RuralRise Seller",
+              location:
+                item.location ||
+                `${item.village || ""}, ${item.state || ""}`,
+              available: Number(item.quantity),
+            }));
+
+          setAvailableSellers(matchingSavedSellers);
+        }
+      }
+    } catch (error) {
+      console.error("Error loading product:", error);
+      setProduct(null);
+      setAvailableSellers([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [id]);
+
+  if (loading) {
+    return (
+      <div className="order-not-found">
+        <h2>Loading product...</h2>
+      </div>
+    );
+  }
 
   if (!product) {
     return (
@@ -55,6 +168,7 @@ function OrderRequest() {
   const estimatedPrice =
     quantity > 0 ? quantity * product.price : 0;
 
+  // Handle form changes
   function handleChange(e) {
     const { name, value } = e.target;
 
@@ -67,49 +181,30 @@ function OrderRequest() {
     setSubmitted(false);
   }
 
-  function handleSubmit(e) {
-  e.preventDefault();
-
-  if (quantity <= 0) {
-    setMessage("Please enter a valid quantity.");
-    return;
-  }
-
-  setSubmitted(true);
-  setMessage("Your order request has been prepared successfully!");
-
-  console.log("Order request:", {
-    product_id: product.id,
-    product_name: product.name,
-    ...formData,
-    quantity,
-    estimated_price: estimatedPrice,
-  });
-}
-  // Demo seller allocation for frontend preview only.
-  // Actual seller matching will be handled by the backend.
-  const sampleSellers = [
-    {
-      name: "Ravi Kumar",
-      location: "Ludhiana, Punjab",
-      available: 40,
-    },
-    {
-      name: "Aman Singh",
-      location: "Patiala, Punjab",
-      available: 35,
-    },
-    {
-      name: "Gurpreet Kaur",
-      location: "Amritsar, Punjab",
-      available: 25,
-    },
-  ];
-
+  // Allocate stock to sellers
   function getSellerAllocation() {
+    if (quantity <= 0 || availableSellers.length === 0) {
+      return [];
+    }
+
+    // First check whether one seller can fulfil the entire order.
+    const singleSeller = availableSellers.find(
+      (seller) => seller.available >= quantity
+    );
+
+    if (singleSeller) {
+      return [
+        {
+          ...singleSeller,
+          allocated: quantity,
+        },
+      ];
+    }
+
+    // If no single seller can fulfil it, combine multiple sellers.
     let remaining = quantity;
 
-    return sampleSellers
+    return availableSellers
       .map((seller) => {
         const allocated = Math.min(
           remaining,
@@ -128,7 +223,7 @@ function OrderRequest() {
 
   const sellerAllocations = getSellerAllocation();
 
-  const totalDemoStock = sampleSellers.reduce(
+  const totalAvailableStock = availableSellers.reduce(
     (total, seller) => total + seller.available,
     0
   );
@@ -138,7 +233,44 @@ function OrderRequest() {
     0
   );
 
-  const isFullyFulfilled = quantity <= totalDemoStock;
+  const isFullyFulfilled =
+    quantity > 0 && fulfilledQuantity >= quantity;
+
+  const fulfilmentType = !isFullyFulfilled
+    ? "partial"
+    : sellerAllocations.length === 1
+      ? "single"
+      : "multiple";
+
+  // Submit order request
+  function handleSubmit(e) {
+    e.preventDefault();
+
+    if (quantity <= 0) {
+      setMessage("Please enter a valid quantity.");
+      return;
+    }
+
+    if (sellerAllocations.length === 0) {
+      setMessage("No matching sellers are currently available.");
+      return;
+    }
+
+    setSubmitted(true);
+    setMessage(
+      "Your order request has been prepared successfully!"
+    );
+
+    console.log("Order request:", {
+      product_id: product.id,
+      product_name: product.name,
+      ...formData,
+      quantity,
+      estimated_price: estimatedPrice,
+      fulfilment_type: fulfilmentType,
+      seller_allocations: sellerAllocations,
+    });
+  }
 
   return (
     <div className="order-request-page">
@@ -198,7 +330,7 @@ function OrderRequest() {
                 </span>
 
                 <small>
-                  Initial seller stock: {product.available}{" "}
+                  Total matching stock: {totalAvailableStock}{" "}
                   {product.unit}
                 </small>
               </div>
@@ -219,9 +351,9 @@ function OrderRequest() {
                 />
 
                 <small>
-                  Need more than one seller can supply?
-                  No problem! RuralRise can combine quantities
-                  from multiple MSMEs to fulfil larger orders.
+                  If one seller cannot fulfil your order,
+                  RuralRise can combine stock from multiple
+                  matching MSMEs.
                 </small>
               </div>
 
@@ -331,25 +463,34 @@ function OrderRequest() {
 
               <p>1. Enter your required quantity.</p>
               <p>2. Share your delivery details.</p>
-              <p>3. RuralRise finds suitable sellers.</p>
-              <p>4. Multiple MSMEs can combine their stock.</p>
+              <p>3. RuralRise checks available sellers.</p>
+              <p>4. Multiple MSMEs combine stock when needed.</p>
             </div>
 
           </aside>
         </div>
 
-        {/* MULTI-SELLER PREVIEW */}
+        {/* FULFILMENT PREVIEW */}
         {submitted && (
           <section className="aggregation-preview">
 
             <div className="aggregation-heading">
               <span>RURALRISE SMART MATCHING</span>
 
-              <h2>Multi-Seller Fulfilment Preview</h2>
+              <h2>
+                {fulfilmentType === "single"
+                  ? "Single-Seller Fulfilment"
+                  : fulfilmentType === "multiple"
+                    ? "Multi-Seller Fulfilment Preview"
+                    : "Partial Fulfilment"}
+              </h2>
 
               <p>
-                Here's how multiple MSMEs could work together
-                to fulfil your order.
+                {fulfilmentType === "single"
+                  ? "One seller has enough stock to fulfil your complete order."
+                  : fulfilmentType === "multiple"
+                    ? "Multiple sellers are combining their stock to fulfil your order."
+                    : "The currently available sellers cannot fulfil your complete order."}
               </p>
             </div>
 
@@ -362,9 +503,9 @@ function OrderRequest() {
               </div>
 
               <div>
-                <small>Combined Demo Stock</small>
+                <small>Total Matching Stock</small>
                 <strong>
-                  {totalDemoStock} {product.unit}
+                  {totalAvailableStock} {product.unit}
                 </strong>
               </div>
 
@@ -376,12 +517,16 @@ function OrderRequest() {
               </div>
             </div>
 
-            <h3>Potential Seller Contributions</h3>
+            <h3>
+              {fulfilmentType === "single"
+                ? "Selected Seller"
+                : "Seller Contributions"}
+            </h3>
 
             {sellerAllocations.map((seller, index) => (
               <div
                 className="seller-allocation-card"
-                key={seller.name}
+                key={`${seller.name}-${seller.location}-${index}`}
               >
                 <div>
                   <strong>{seller.name}</strong>
@@ -393,7 +538,11 @@ function OrderRequest() {
                     {seller.allocated} {product.unit}
                   </strong>
 
-                  <small>Proposed contribution</small>
+                  <small>
+                    {fulfilmentType === "single"
+                      ? "Fulfilling complete order"
+                      : "Proposed contribution"}
+                  </small>
                 </div>
               </div>
             ))}
@@ -408,39 +557,46 @@ function OrderRequest() {
 
             {isFullyFulfilled ? (
               <div className="aggregation-status success">
-                Your requested quantity can be covered
-                by the sample seller contributions.
+                {fulfilmentType === "single"
+                  ? "One seller can fulfil your entire order. No additional sellers are needed."
+                  : "Your requested quantity can be covered by the combined seller contributions."}
               </div>
             ) : (
               <div className="aggregation-status warning">
-                The sample sellers cannot fulfil the complete
-                quantity. Additional sellers are needed for{" "}
+                More sellers are needed for{" "}
                 {quantity - fulfilledQuantity} {product.unit}.
+                Your order is currently only partially fulfilable.
               </div>
             )}
+
             <button
-                className="confirm-order-btn"
-                onClick={() =>
-                    navigate("/order-confirmation", {
-                    state: {
-                        product,
-                        formData,
-                        quantity,
-                        estimatedPrice,
-                        sellerAllocations,
-                        fulfilledQuantity,
-                        isFullyFulfilled,
-                    },
-                    })
-                }
-                >
-                Confirm Order →
-                </button>
+              className="confirm-order-btn"
+              onClick={() =>
+                navigate("/order-confirmation", {
+                  state: {
+                    product,
+                    formData,
+                    quantity,
+                    estimatedPrice,
+                    sellerAllocations,
+                    fulfilledQuantity,
+                    isFullyFulfilled,
+                    fulfilmentType,
+                    totalAvailableStock,
+                  },
+                })
+              }
+            >
+              {isFullyFulfilled
+                ? "Confirm Order →"
+                : "Continue with Partial Fulfilment →"}
+            </button>
+
             <p className="demo-disclaimer">
               This is a frontend demonstration using sample
-              sellers. Actual seller availability, matching,
-              allocation and confirmation will be handled
-              by the backend.
+              seller inventory. Actual seller availability,
+              matching, allocation and confirmation will be
+              handled by the backend.
             </p>
 
           </section>

@@ -6,6 +6,8 @@ import {
 } from "firebase/auth";
 import { auth } from "../firebase/firebase";
 import "./Auth.css";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "../firebase/firebase";
 
 function Login() {
   const navigate = useNavigate();
@@ -17,35 +19,71 @@ function Login() {
   const [loading, setLoading] = useState(false);
 
   // Login Function
-  async function handleLogin(e) {
-    e.preventDefault();
+  
+async function handleLogin(e) {
+  e.preventDefault();
 
-    setError("");
-    setMessage("");
-    setLoading(true);
+  setError("");
+  setMessage("");
+  setLoading(true);
 
-    try {
-      await signInWithEmailAndPassword(auth, email, password);
+  try {
+    const userCredential = await signInWithEmailAndPassword(
+      auth,
+      email.trim(),
+      password
+    );
 
-      navigate("/dashboard");
+    const loggedInUser = userCredential.user;
 
-    } catch (error) {
-      console.error("Login error:", error);
+    // Fetch the user's saved role from Firestore
+    const userRef = doc(db, "users", loggedInUser.uid);
+    const userSnap = await getDoc(userRef);
 
-      if (
-        error.code === "auth/invalid-credential" ||
-        error.code === "auth/wrong-password" ||
-        error.code === "auth/user-not-found"
-      ) {
-        setError("Invalid email or password. Please try again.");
-      } else {
-        setError("Something went wrong. Please try again.");
-      }
-
-    } finally {
-      setLoading(false);
+    if (!userSnap.exists()) {
+      setError("User profile not found. Please contact support.");
+      return;
     }
+
+    const userData = userSnap.data();
+    console.log("LOGIN UID:", loggedInUser.uid);
+console.log("FIRESTORE DATA:", userData);
+console.log("FETCHED ROLE:", userData.role);
+    console.log("Logged-in user:", loggedInUser.email);
+console.log("Role fetched from Firestore:", userData.role);
+console.log("Redirecting to:", userData.role === "buyer"
+  ? "/buyer-dashboard"
+  : userData.role === "worker"
+  ? "/worker-dashboard"
+  : "/dashboard"
+);
+
+    // Redirect according to registered role
+    if (userData.role === "buyer") {
+      navigate("/buyer-dashboard");
+    } else if (userData.role === "worker") {
+      navigate("/worker-dashboard");
+    } else {
+      navigate("/dashboard");
+    }
+
+  } catch (error) {
+    console.error("Login error:", error);
+
+    if (
+      error.code === "auth/invalid-credential" ||
+      error.code === "auth/wrong-password" ||
+      error.code === "auth/user-not-found"
+    ) {
+      setError("Invalid email or password. Please try again.");
+    } else {
+      setError("Something went wrong. Please try again.");
+    }
+
+  } finally {
+    setLoading(false);
   }
+}
 
   // Forgot Password Function
   async function handleForgotPassword() {

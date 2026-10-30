@@ -442,3 +442,47 @@
   background: #B69A60;
   color: #173D32 !important;
 }
+
+
+/* Sorting and filter layout */
+
+.market-filter-right {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  flex-wrap: wrap;
+}
+
+.sort-select {
+  padding: 10px 14px;
+  background: white;
+  color: #526159;
+  border: 1px solid #D6DED5;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  outline: none;
+}
+
+.sort-select:focus {
+  border-color: #173D32;
+}
+
+/* Keep product images contained */
+
+.product-image img {
+  display: block;
+}
+
+/* Responsive filter layout */
+
+@media (max-width: 600px) {
+  .market-filter-right {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .sort-select {
+    max-width: 100%;
+  }
+}
