@@ -1,11 +1,15 @@
+
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
-import { auth } from "../firebase/firebase";
+import {
+  createUserWithEmailAndPassword,
+  updateProfile
+} from "firebase/auth";
+import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { auth, db } from "../firebase/firebase";
 import "./Auth.css";
 
 function Register() {
-
   const navigate = useNavigate();
 
   const [name, setName] = useState("");
@@ -13,153 +17,122 @@ function Register() {
   const [location, setLocation] = useState("");
   const [role, setRole] = useState("");
   const [password, setPassword] = useState("");
-
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   async function handleRegister(e) {
     e.preventDefault();
-
     setError("");
     setLoading(true);
+
+    let accountCreated = false;
 
     try {
       const userCredential = await createUserWithEmailAndPassword(
         auth,
-        email,
+        email.trim(),
         password
       );
 
-      await updateProfile(userCredential.user, {
-        displayName: name
+      accountCreated = true;
+
+      const user = userCredential.user;
+
+      await updateProfile(user, {
+        displayName: name.trim()
+      });
+
+      await setDoc(doc(db, "users", user.uid), {
+        uid: user.uid,
+        name: name.trim(),
+        email: user.email,
+        location: location.trim(),
+        role: role,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
       });
 
       navigate("/dashboard");
 
     } catch (error) {
-      setError(error.message);
-    }
+      console.error("Registration error:", error);
 
-    setLoading(false);
+      if (accountCreated) {
+        setError(
+          "Your account was created, but your profile could not be saved. Please contact support."
+        );
+      } else {
+        setError(error.message);
+      }
+
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
-    <div className="auth-page">
-
-      <div className="auth-brand">
-        <Link to="/">❋ RuralRise</Link>
-        <p>SELL → SCALE → GROW</p>
-
-        <div className="auth-brand-content">
-          <h1>
-            Local Roots.<br />
-            <span>Bigger Dreams.</span>
-          </h1>
-
-          <div className="brand-description">
-            Discover opportunities, connect with buyers,
-            and take your local business to new heights.
-          </div>
-        </div>
-      </div>
-
+    <div className="auth-container">
       <div className="auth-card">
+        <h2>Create Account</h2>
+        <p>Join RuralRise and grow your business with us.</p>
 
-        <div className="auth-heading">
-          <span>JOIN OUR COMMUNITY</span>
-          <h2>Create Your Account</h2>
-          <p>Start your journey towards bigger opportunities.</p>
-        </div>
+        {error && <p className="error-message">{error}</p>}
 
         <form onSubmit={handleRegister}>
+          <input
+            type="text"
+            placeholder="Full Name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
+          />
 
-          <div className="mb-3">
-            <label>Full Name</label>
-            <input
-              type="text"
-              className="form-control"
-              placeholder="Enter your name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-            />
-          </div>
+          <input
+            type="email"
+            placeholder="Email Address"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
 
-          <div className="mb-3">
-            <label>Email Address</label>
-            <input
-              type="email"
-              className="form-control"
-              placeholder="Enter your email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-          </div>
+          <input
+            type="text"
+            placeholder="Location"
+            value={location}
+            onChange={(e) => setLocation(e.target.value)}
+            required
+          />
 
-          <div className="mb-3">
-            <label>Location</label>
-            <input
-              type="text"
-              className="form-control"
-              placeholder="Your city or village"
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-              required
-            />
-          </div>
-
-          <div className="mb-3">
-            <label>I want to join as</label>
-            <select
-              className="form-select"
-              value={role}
-              onChange={(e) => setRole(e.target.value)}
-              required
-            >
-              <option value="" disabled>Select your role</option>
-              <option value="seller">Seller / Producer</option>
-              <option value="buyer">Buyer</option>
-              <option value="worker">Skilled Worker</option>
-            </select>
-          </div>
-
-          <div className="mb-3">
-            <label>Password</label>
-            <input
-              type="password"
-              className="form-control"
-              placeholder="Create a password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-          </div>
-
-          {error && (
-            <p style={{ color: "red" }}>{error}</p>
-          )}
-
-          <button
-            type="submit"
-            className="btn gold-btn auth-submit"
-            disabled={loading}
+          <select
+            value={role}
+            onChange={(e) => setRole(e.target.value)}
+            required
           >
-            {loading ? "Creating Account..." : "Create Account →"}
-          </button>
+            <option value="" disabled>
+              Select your role
+            </option>
+            <option value="seller">Seller / Producer</option>
+            <option value="buyer">Buyer</option>
+            <option value="worker">Skilled Worker</option>
+          </select>
 
+          <input
+            type="password"
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
+
+          <button type="submit" disabled={loading}>
+            {loading ? "Creating Account..." : "Register"}
+          </button>
         </form>
 
-        <p className="auth-switch">
+        <p>
           Already have an account? <Link to="/login">Login</Link>
         </p>
-
       </div>
-
-      <p className="auth-footer">
-        © 2026 RuralRise. All rights reserved.
-      </p>
-
     </div>
   );
 }
