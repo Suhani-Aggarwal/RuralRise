@@ -8,38 +8,43 @@ import "./BuyerDashboard.css";
 
 function BuyerDashboard() {
   const navigate = useNavigate();
-  const { user, userProfile } = useAuth();
+  const { user, userProfile, switchRole } = useAuth();
   const [orders, setOrders] = useState([]);
 
   const displayName = userProfile?.name || user?.displayName || "Buyer";
   const displayEmail = user?.email || "";
 
-  useEffect(() => {
-    if (!user?.uid) {
+ useEffect(() => {
+  if (!user?.uid) {
+    setOrders([]);
+    return;
+  }
+
+  function loadOrders() {
+    try {
+      const savedOrders = JSON.parse(
+        localStorage.getItem("ruralrise_orders") || "[]"
+      );
+
+      setOrders(
+        savedOrders.filter((order) => order.buyerUid === user.uid)
+      );
+    } catch (error) {
+      console.error("Unable to load buyer orders:", error);
       setOrders([]);
-      return;
     }
+  }
 
-    function loadOrders() {
-      try {
-        const savedOrders = JSON.parse(
-          localStorage.getItem("ruralrise_orders") || "[]"
-        );
+  loadOrders();
 
-        setOrders(
-          savedOrders.filter((order) => order.buyerUid === user.uid)
-        );
-      } catch (error) {
-        console.error("Unable to load buyer orders:", error);
-        setOrders([]);
-      }
-    }
+  window.addEventListener("storage", loadOrders);
+  window.addEventListener("ruralrise-orders-updated", loadOrders);
 
-    loadOrders();
-    window.addEventListener("storage", loadOrders);
-
-    return () => window.removeEventListener("storage", loadOrders);
-  }, [user?.uid]);
+  return () => {
+    window.removeEventListener("storage", loadOrders);
+    window.removeEventListener("ruralrise-orders-updated", loadOrders);
+  };
+}, [user?.uid]);
 
   const pendingOrders = orders.filter(
     (order) => order.status === "Pending"
@@ -79,6 +84,14 @@ function BuyerDashboard() {
           <Link to="/my-orders" className="sidebar-link">
             <span>▤</span> My Orders
           </Link>
+
+          <Link
+  to="/seller-dashboard"
+  className="sidebar-link"
+  onClick={() => switchRole("seller")}
+>
+  <span>⇄</span> Switch to Seller
+</Link>
         </div>
 
         <div className="sidebar-bottom">

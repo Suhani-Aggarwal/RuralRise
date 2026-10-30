@@ -8,93 +8,179 @@ import "./Dashboard.css";
 
 function Dashboard() {
   const navigate = useNavigate();
-  const { user, userProfile } = useAuth();
+  const { user, userProfile, switchRole } = useAuth();
 
   const [myProducts, setMyProducts] = useState([]);
   const [bulkOpportunities, setBulkOpportunities] = useState(0);
   const [connections, setConnections] = useState(0);
+  const [sellerOrders, setSellerOrders] = useState([]);
 
-  const displayName =
-    userProfile?.name || user?.displayName || "User";
-
+  const displayName = userProfile?.name || user?.displayName || "User";
   const displayRole = userProfile?.role || "Community Member";
 
-  // Load products belonging to the logged-in seller
-  useEffect(() => {
-    function loadMyProducts() {
-      try {
-        const allProducts = JSON.parse(
-          localStorage.getItem("ruralrise_products") || "[]"
-        );
+  function loadDashboardData() {
+    if (!user?.uid) return;
 
-        const sellerProducts = allProducts.filter(
-          (product) => product.sellerUid === user?.uid
-        );
+    try {
+      const allProducts = JSON.parse(
+        localStorage.getItem("ruralrise_products") || "[]"
+      );
 
-        setMyProducts(sellerProducts);
+      const sellerProducts = allProducts.filter(
+        (product) => product.sellerUid === user.uid
+      );
 
-        const bulkRequests = JSON.parse(
-          localStorage.getItem("ruralrise_bulk_requests") || "[]"
-        );
+      setMyProducts(sellerProducts);
 
-        const normalize = (value) =>
-          String(value || "").trim().toLowerCase().replace(/\\s+/g, " ");
+      const bulkRequests = JSON.parse(
+        localStorage.getItem("ruralrise_bulk_requests") || "[]"
+      );
 
-        const sellerProductNames = sellerProducts.map((product) =>
-          normalize(product.product_name)
-        );
+      const normalize = (value) =>
+        String(value || "").trim().toLowerCase().replace(/\s+/g, " ");
 
-        const matchingOpenRequests = bulkRequests.filter((request) =>
+      const sellerProductNames = sellerProducts.map((product) =>
+        normalize(product.product_name)
+      );
+
+      const matchingOpenRequests = bulkRequests.filter(
+        (request) =>
           request.status === "Open" &&
           !request.isDemo &&
-          request.buyerUid !== user?.uid &&
+          request.buyerUid !== user.uid &&
           sellerProductNames.includes(normalize(request.product))
+      );
+
+      const acceptedBuyerIds = bulkRequests
+        .filter((request) => request.buyerUid)
+        .flatMap((request) =>
+          (request.interests || [])
+            .filter(
+              (interest) =>
+                interest.sellerUid === user.uid &&
+                interest.status === "Accepted"
+            )
+            .map(() => request.buyerUid)
         );
 
-        const acceptedBuyerIds = bulkRequests
-          .filter((request) => request.buyerUid)
-          .flatMap((request) =>
-            (request.interests || [])
-              .filter(
-                (interest) =>
-                  interest.sellerUid === user?.uid &&
-                  interest.status === "Accepted"
-              )
-              .map(() => request.buyerUid)
-          );
+      setBulkOpportunities(matchingOpenRequests.length);
+      setConnections(new Set(acceptedBuyerIds).size);
 
-        setBulkOpportunities(matchingOpenRequests.length);
-        setConnections(new Set(acceptedBuyerIds).size);
-      } catch (error) {
-        console.error("Error loading seller products:", error);
-        setMyProducts([]);
-        setBulkOpportunities(0);
-        setConnections(0);
-      }
+      const allOrders = JSON.parse(
+        localStorage.getItem("ruralrise_orders") || "[]"
+      );
+
+      // Show only orders containing a contribution assigned to this seller.
+      const assignedOrders = allOrders
+        .map((order) => ({
+          ...order,
+          sellerAllocations: (order.sellerAllocations || []).map(
+            (allocation) => ({
+              ...allocation,
+              status: allocation.status || "Pending",
+            })
+          ),
+        }))
+        .filter((order) =>
+          order.sellerAllocations.some(
+            (allocation) => allocation.sellerUid === user.uid
+          )
+        );
+
+      setSellerOrders(assignedOrders);
+    } catch (error) {
+      console.error("Error loading seller dashboard:", error);
     }
+  }
 
-    if (user?.uid) {
-      loadMyProducts();
-    }
+  useEffect(() => {
+    loadDashboardData();
 
-    // Listen for changes made in other browser tabs
-    window.addEventListener("storage", loadMyProducts);
+    window.addEventListener("storage", loadDashboardData);
+    window.addEventListener("ruralrise-orders-updated", loadDashboardData);
 
     return () => {
-      window.removeEventListener("storage", loadMyProducts);
+      window.removeEventListener("storage", loadDashboardData);
+      window.removeEventListener("ruralrise-orders-updated", loadDashboardData);
     };
   }, [user?.uid]);
 
   function deleteProduct(productId) {
-    const confirmed = window.confirm("Delete this product listing? This cannot be undone.");
+    const confirmed = window.confirm(
+      "Delete this product listing? This cannot be undone."
+    );
+
     if (!confirmed) return;
-    const allProducts = JSON.parse(localStorage.getItem("ruralrise_products") || "[]");
-    const updated = allProducts.filter((item) => !(String(item.id) === String(productId) && item.sellerUid === user?.uid));
+
+    const allProducts = JSON.parse(
+      localStorage.getItem("ruralrise_products") || "[]"
+    );
+
+    const updated = allProducts.filter(
+      (item) =>
+        !(
+          String(item.id) === String(productId) &&
+          item.sellerUid === user?.uid
+        )
+    );
+
     localStorage.setItem("ruralrise_products", JSON.stringify(updated));
     setMyProducts(updated.filter((item) => item.sellerUid === user?.uid));
   }
 
-  // Get the five most recently added products
+  function completeContribution(orderId) {
+    const confirmed = window.confirm(
+      "Have you fulfilled your contribution for this order?"
+    );
+
+    if (!confirmed) return;
+
+    try {
+      const allOrders = JSON.parse(
+        localStorage.getItem("ruralrise_orders") || "[]"
+      );
+
+      const updatedOrders = allOrders.map((order) => {
+        if (order.orderId !== orderId) return order;
+
+        const updatedAllocations = (order.sellerAllocations || []).map(
+          (allocation) => {
+            if (allocation.sellerUid !== user.uid) return allocation;
+
+            return {
+              ...allocation,
+              status: "Completed",
+              completedAt: new Date().toISOString(),
+            };
+          }
+        );
+
+        const allCompleted =
+          updatedAllocations.length > 0 &&
+          updatedAllocations.every(
+            (allocation) => allocation.status === "Completed"
+          );
+
+        return {
+          ...order,
+          sellerAllocations: updatedAllocations,
+          status: allCompleted ? "Completed" : "Pending",
+        };
+      });
+
+      localStorage.setItem(
+        "ruralrise_orders",
+        JSON.stringify(updatedOrders)
+      );
+
+      window.dispatchEvent(new Event("ruralrise-orders-updated"));
+      loadDashboardData();
+    } catch (error) {
+      console.error("Unable to update order:", error);
+      alert("Unable to update the order. Please try again.");
+    }
+  }
+
   const recentProducts = [...myProducts]
     .sort(
       (a, b) =>
@@ -115,55 +201,48 @@ function Dashboard() {
 
   return (
     <div className="dashboard-layout">
-
-      {/* Sidebar */}
       <aside className="dashboard-sidebar">
-        <Link to="/" className="dashboard-logo">
-          ❋ RuralRise
-        </Link>
-
+        <Link to="/" className="dashboard-logo">❋ RuralRise</Link>
         <p className="sidebar-tagline">SELL → SCALE → GROW</p>
 
         <div className="sidebar-menu">
           <p className="menu-label">MAIN MENU</p>
-
           <Link to="/seller-dashboard" className="sidebar-link active">
             <span>▦</span> Dashboard
           </Link>
-
           <Link to="/marketplace" className="sidebar-link">
             <span>◈</span> Marketplace
           </Link>
-
           <Link to="/add-product" className="sidebar-link">
             <span>＋</span> Add Product
           </Link>
-
           <Link to="/bulk-requests" className="sidebar-link">
             <span>⇄</span> Bulk Requests
           </Link>
           <Link to="/msme-profile" className="sidebar-link">
             <span>♧</span> MSME Profile
           </Link>
+
+          <Link
+  to="/buyer-dashboard"
+  className="sidebar-link"
+  onClick={() => switchRole("buyer")}
+>
+  <span>⇄</span> Switch to Buyer
+</Link>
         </div>
 
         <div className="sidebar-bottom">
           <Link to="/" className="sidebar-link">
             <span>↩</span> Back to Home
           </Link>
-
-          <button
-            className="sidebar-link logout-button"
-            onClick={handleLogout}
-          >
+          <button className="sidebar-link logout-button" onClick={handleLogout}>
             <span>⇥</span> Logout
           </button>
         </div>
       </aside>
 
-      {/* Main Content */}
       <main className="dashboard-main">
-
         <header className="dashboard-header">
           <div>
             <span className="dashboard-eyebrow">YOUR GROWTH SPACE</span>
@@ -175,7 +254,6 @@ function Dashboard() {
             <div className="profile-avatar">
               {displayName.charAt(0).toUpperCase()}
             </div>
-
             <div>
               <strong>{displayName}</strong>
               <span>{displayRole}</span>
@@ -183,7 +261,6 @@ function Dashboard() {
           </div>
         </header>
 
-        {/* Welcome Banner */}
         <section className="welcome-banner">
           <div>
             <span>GROW WITH RURALRISE</span>
@@ -196,37 +273,96 @@ function Dashboard() {
               Explore Marketplace →
             </Link>
           </div>
-
           <div className="banner-symbol">❋</div>
         </section>
 
-        {/* Statistics */}
         <section className="dashboard-stats">
-
           <div className="stat-card">
             <span className="stat-icon">◈</span>
             <p>My Products</p>
             <h3>{myProducts.length}</h3>
             <span className="stat-note">Products listed</span>
           </div>
-
           <div className="stat-card">
             <span className="stat-icon">⇄</span>
             <p>Bulk Opportunities</p>
             <h3>{bulkOpportunities}</h3>
             <span className="stat-note">Matching open requests</span>
           </div>
-
           <div className="stat-card">
             <span className="stat-icon">♧</span>
             <p>Connections</p>
             <h3>{connections}</h3>
             <span className="stat-note">Accepted connections</span>
           </div>
-
         </section>
 
-        {/* Quick Actions */}
+        <section className="dashboard-section">
+          <div className="section-heading">
+            <div>
+              <span>ORDER MANAGEMENT</span>
+              <h2>Orders for My Products</h2>
+            </div>
+          </div>
+
+          {sellerOrders.length === 0 ? (
+            <div className="empty-activity">
+              <h3>No assigned orders yet</h3>
+              <p>Orders assigned to your products will appear here.</p>
+            </div>
+          ) : (
+            <div className="seller-orders-list">
+              {sellerOrders.map((order) => {
+                const myAllocation = order.sellerAllocations.find(
+                  (allocation) => allocation.sellerUid === user?.uid
+                );
+
+                return (
+                  <article className="seller-order-card" key={order.orderId}>
+                    <div>
+                      <span>{order.orderId}</span>
+                      <h3>{order.productName}</h3>
+                      <p>Buyer: {order.buyerName || "Buyer"}</p>
+                      <p>
+                        My contribution: {myAllocation?.allocated || 0}{" "}
+                        {order.unit}
+                      </p>
+                      <p>Delivery: {order.deliveryLocation || "Not provided"}</p>
+                      <p>
+                        Order date:{" "}
+                        {order.createdAt
+                          ? new Date(order.createdAt).toLocaleDateString("en-IN")
+                          : "Not available"}
+                      </p>
+                    </div>
+
+                    <div className="seller-order-actions">
+                      <span
+                        className={
+                          myAllocation?.status === "Completed"
+                            ? "seller-status-completed"
+                            : "seller-status-pending"
+                        }
+                      >
+                        {myAllocation?.status || "Pending"}
+                      </span>
+
+                      {myAllocation?.status !== "Completed" && (
+                        <button
+                          type="button"
+                          onClick={() => completeContribution(order.orderId)}
+                        >
+                          Mark My Contribution Completed
+                        </button>
+                      )}
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
         <section className="dashboard-section">
           <div className="section-heading">
             <div>
@@ -236,7 +372,6 @@ function Dashboard() {
           </div>
 
           <div className="quick-actions">
-
             <Link to="/add-product" className="action-card">
               <span className="action-icon">＋</span>
               <h3>Add a Product</h3>
@@ -257,13 +392,10 @@ function Dashboard() {
               <p>Find opportunities for larger orders.</p>
               <span className="action-arrow">→</span>
             </Link>
-
           </div>
         </section>
 
-        {/* Recent Activity */}
         <section className="dashboard-section activity-section">
-
           <div className="section-heading">
             <div>
               <span>YOUR JOURNEY</span>
@@ -272,58 +404,42 @@ function Dashboard() {
           </div>
 
           {recentProducts.length > 0 ? (
-
             <div className="recent-products-list">
-
               {recentProducts.map((product) => (
-
                 <div className="recent-product-item" key={product.id}>
-
                   <div>
                     <h3>{product.product_name}</h3>
-                    <p>
-                      {product.category} · {product.location}
-                    </p>
+                    <p>{product.category} · {product.location}</p>
                   </div>
 
                   <div className="recent-product-details">
                     <strong>₹{product.price}</strong>
-                    <span>
-                      {product.quantity} {product.unit}
-                    </span>
-                    <button type="button" onClick={() => deleteProduct(product.id)} className="delete-product-button">
+                    <span>{product.quantity} {product.unit}</span>
+                    <button
+                      type="button"
+                      onClick={() => deleteProduct(product.id)}
+                      className="delete-product-button"
+                    >
                       Delete
                     </button>
                   </div>
-
                 </div>
-
               ))}
-
             </div>
-
           ) : (
-
             <div className="empty-activity">
               <span>✧</span>
               <h3>Your journey starts here</h3>
-              <p>
-                Your recently published products will appear here.
-              </p>
-
+              <p>Your recently published products will appear here.</p>
               <Link to="/add-product" className="banner-button">
                 Add Your First Product →
               </Link>
             </div>
-
           )}
-
         </section>
-
       </main>
     </div>
   );
 }
 
-/* Product deletion is a local demo action; backend deletion will replace it later. */
 export default Dashboard;

@@ -23,27 +23,36 @@ function OrderConfirmation() {
         localStorage.getItem("ruralrise_orders") || "[]"
       );
 
-      const alreadySaved = existingOrders.some(
-        (savedOrder) => savedOrder.orderId === orderId
-      );
+      if (existingOrders.some((item) => item.orderId === orderId)) return;
 
-      if (alreadySaved) return;
+      const allocations = (order.sellerAllocations || []).map(
+        (seller) => ({
+          ...seller,
+          sellerUid: seller.sellerUid || "",
+          status: "Pending",
+        })
+      );
 
       const savedOrder = {
         orderId,
         buyerUid: user.uid,
-        buyerName: order.formData?.buyer_name || user.displayName || "Buyer",
-        productName: order.product?.name || "Product",
+        buyerName: order.formData.buyer_name || user.displayName || "Buyer",
+        buyerEmail: user.email || "",
+        productName: order.product.name || "Product",
+        productId: order.product.id || "",
         quantity: Number(order.quantity) || 0,
-        unit: order.product?.unit || order.product?.priceUnit || "",
+        unit: order.product.unit || "",
         estimatedPrice: Number(order.estimatedPrice) || 0,
+        deliveryLocation: order.formData.delivery_location || "",
+        contact: order.formData.contact || "",
+        requirements: order.formData.requirements || "",
         fulfilmentType:
           order.fulfilmentType === "single"
             ? "Single-Seller"
             : order.fulfilmentType === "multiple"
               ? "Multi-Seller"
               : "Partial Fulfilment",
-        sellerAllocations: order.sellerAllocations || [],
+        sellerAllocations: allocations,
         status: "Pending",
         paymentStatus: "Payment Pending",
         paymentMethod: "",
@@ -55,6 +64,8 @@ function OrderConfirmation() {
         "ruralrise_orders",
         JSON.stringify([...existingOrders, savedOrder])
       );
+
+      window.dispatchEvent(new Event("ruralrise-orders-updated"));
     } catch (error) {
       console.error("Unable to save order:", error);
     }
@@ -81,25 +92,17 @@ function OrderConfirmation() {
     fulfilmentType,
   } = order;
 
-  const safeAllocations = Array.isArray(sellerAllocations)
+  const orderAllocations = Array.isArray(sellerAllocations)
     ? sellerAllocations
     : [];
 
-  const totalQuantity = Number(fulfilledQuantity) || 0;
-  const requestedQuantity = Number(quantity) || 0;
-  const totalPrice = Number(estimatedPrice) || 0;
-
-  const displayFulfilmentType =
-    fulfilmentType ||
-    (safeAllocations.length > 1
-      ? "Multi-Seller Fulfilment"
-      : "Single-Seller Fulfilment");
+  const orderTotal = Number(estimatedPrice) || 0;
 
   const proceedToPayment = () => {
     navigate("/payment", {
       state: {
         orderId,
-        amount: totalPrice,
+        amount: orderTotal,
         productName: product.name,
       },
     });
@@ -111,7 +114,6 @@ function OrderConfirmation() {
         <Link to="/" className="confirmation-logo">
           ❋ RuralRise
         </Link>
-
         <div>
           <Link to="/my-dashboard">Dashboard</Link>
           <Link to="/marketplace">Marketplace</Link>
@@ -120,13 +122,11 @@ function OrderConfirmation() {
 
       <main className="confirmation-container">
         <div className="confirmation-success-icon">✓</div>
-
         <span className="confirmation-eyebrow">
           SELL → SCALE → GROW
         </span>
 
         <h1>Order Request Submitted!</h1>
-
         <p className="confirmation-intro">
           Your order request has been prepared successfully.
           Review the details and proposed seller contributions below.
@@ -138,7 +138,6 @@ function OrderConfirmation() {
               <span>ORDER SUMMARY</span>
               <h2>{product.name}</h2>
             </div>
-
             <span className="demo-status">Awaiting Seller Response</span>
           </div>
 
@@ -152,32 +151,25 @@ function OrderConfirmation() {
               <small>Buyer Name</small>
               <strong>{formData.buyer_name || "Not provided"}</strong>
             </div>
-
             <div>
               <small>Required Quantity</small>
-              <strong>
-                {requestedQuantity} {product.unit || product.priceUnit || ""}
-              </strong>
+              <strong>{quantity} {product.unit}</strong>
             </div>
-
             <div>
               <small>Delivery Location</small>
               <strong>{formData.delivery_location || "Not provided"}</strong>
             </div>
-
             <div>
               <small>Contact Number</small>
               <strong>{formData.contact || "Not provided"}</strong>
             </div>
-
             <div>
               <small>Estimated Product Cost</small>
-              <strong>₹{totalPrice.toLocaleString("en-IN")}</strong>
+              <strong>₹{orderTotal.toLocaleString("en-IN")}</strong>
             </div>
-
             <div>
               <small>Fulfilment Type</small>
-              <strong>{displayFulfilmentType}</strong>
+              <strong>{fulfilmentType || "Not specified"}</strong>
             </div>
           </div>
 
@@ -189,11 +181,10 @@ function OrderConfirmation() {
           )}
 
           <div className="confirmation-divider" />
-
           <h3>Proposed Seller Contributions</h3>
 
-          {safeAllocations.length > 0 ? (
-            safeAllocations.map((seller, index) => (
+          {orderAllocations.length > 0 ? (
+            orderAllocations.map((seller, index) => (
               <div
                 className="confirmation-seller"
                 key={`${seller.name}-${index}`}
@@ -202,10 +193,8 @@ function OrderConfirmation() {
                   <strong>{seller.name}</strong>
                   <small>{seller.location || "Location not provided"}</small>
                 </div>
-
                 <strong>
-                  {Number(seller.allocated) || 0}{" "}
-                  {product.unit || product.priceUnit || ""}
+                  {Number(seller.allocated) || 0} {product.unit}
                 </strong>
               </div>
             ))
@@ -215,9 +204,7 @@ function OrderConfirmation() {
 
           <div className="confirmation-total">
             <strong>Combined Contribution</strong>
-            <strong>
-              {totalQuantity} {product.unit || product.priceUnit || ""}
-            </strong>
+            <strong>{fulfilledQuantity} {product.unit}</strong>
           </div>
 
           <div className="confirmation-fulfilment-status">
@@ -231,23 +218,20 @@ function OrderConfirmation() {
 
           {!isFullyFulfilled && (
             <p className="confirmation-warning">
-              The currently available sellers cannot fulfil the complete
-              requested quantity. Additional sellers or stock may be required.
+              Additional sellers or stock may be required.
             </p>
           )}
         </section>
 
         <div className="confirmation-notice">
+          <strong>Order status: Pending</strong>
+          <p>
+            The assigned sellers need to fulfil their contributions
+            before the order can be marked Completed.
+          </p>
           <strong>Payment status: Payment Pending</strong>
           <p>
-            This is a simulated payment for the RuralRise MVP. No real
-            transaction or money transfer will take place.
-          </p>
-
-          <strong>What happens next?</strong>
-          <p>
-            You can try the demo checkout to see how payment success,
-            failure and cancellation are handled.
+            This is a simulated payment for the RuralRise MVP.
           </p>
         </div>
 
@@ -259,11 +243,9 @@ function OrderConfirmation() {
           >
             Proceed to Demo Payment →
           </button>
-
           <Link to="/my-orders" className="confirmation-secondary">
             View My Orders
           </Link>
-
           <Link to="/marketplace" className="confirmation-secondary">
             Continue Shopping
           </Link>
@@ -271,7 +253,6 @@ function OrderConfirmation() {
 
         <p className="confirmation-disclaimer">
           Demo only: order and payment information are saved in this browser.
-          Real payment processing and shared backend storage are not connected.
         </p>
       </main>
     </div>

@@ -49,6 +49,7 @@ function OrderRequest() {
 
       const formattedProducts = savedProducts.map((item) => ({
         id: String(item.id),
+        sellerUid: item.sellerUid || "",
         name: item.product_name,
         category: item.category,
         price: Number(item.price),
@@ -80,11 +81,16 @@ function OrderRequest() {
         );
 
         if (isDemoProduct) {
-          const matchingSellers = sampleSellers.filter(
-            (seller) =>
-              seller.productName.toLowerCase() ===
-              foundProduct.name.toLowerCase()
-          );
+          const matchingSellers = sampleSellers
+            .filter(
+              (seller) =>
+                seller.productName.toLowerCase() ===
+                foundProduct.name.toLowerCase()
+            )
+            .map((seller) => ({
+              ...seller,
+              sellerUid: "",
+            }));
 
           setAvailableSellers(matchingSellers);
         } else {
@@ -95,12 +101,14 @@ function OrderRequest() {
                 foundProduct.name.trim().toLowerCase()
             )
             .map((item) => ({
+              sellerUid: item.sellerUid || "",
               name: item.seller || "RuralRise Seller",
               location:
                 item.location ||
                 `${item.village || ""}, ${item.state || ""}`,
-              available: Number(item.quantity),
-            }));
+              available: Number(item.quantity) || 0,
+            }))
+            .filter((seller) => seller.available > 0);
 
           setAvailableSellers(matchingSellers);
         }
@@ -132,6 +140,7 @@ function OrderRequest() {
   }
 
   const quantity = Number(formData.quantity);
+
   const estimatedPrice =
     quantity > 0 ? quantity * product.price : 0;
 
@@ -147,21 +156,29 @@ function OrderRequest() {
   }
 
   function getSellerAllocation() {
-    if (quantity <= 0 || availableSellers.length === 0) {
+    if (
+      quantity <= 0 ||
+      !Number.isFinite(quantity) ||
+      availableSellers.length === 0
+    ) {
       return [];
     }
 
+    // First check whether one seller can fulfil the complete order.
     const singleSeller = availableSellers.find(
       (seller) => seller.available >= quantity
     );
 
     if (singleSeller) {
-      return [{
-        ...singleSeller,
-        allocated: quantity,
-      }];
+      return [
+        {
+          ...singleSeller,
+          allocated: quantity,
+        },
+      ];
     }
 
+    // Otherwise combine stock from multiple sellers.
     let remaining = quantity;
 
     return availableSellers
@@ -202,10 +219,10 @@ function OrderRequest() {
       ? "single"
       : "multiple";
 
-  function handleSubmit(e) {
-    e.preventDefault();
+  function continueToConfirmation(e) {
+    if (e) e.preventDefault();
 
-    if (quantity <= 0) {
+    if (quantity <= 0 || !Number.isFinite(quantity)) {
       setMessage("Please enter a valid quantity.");
       return;
     }
@@ -228,6 +245,10 @@ function OrderRequest() {
         totalAvailableStock,
       },
     });
+  }
+
+  function handleSubmit(e) {
+    continueToConfirmation(e);
   }
 
   return (
@@ -454,7 +475,9 @@ function OrderRequest() {
           <h3>Seller Contributions</h3>
 
           {sellerAllocations.length === 0 ? (
-            <p>Enter a quantity to see suggested seller contributions.</p>
+            <p>
+              Enter a quantity to see suggested seller contributions.
+            </p>
           ) : (
             sellerAllocations.map((seller, index) => (
               <div
@@ -496,23 +519,14 @@ function OrderRequest() {
           )}
 
           <button
+            type="button"
             className="confirm-order-btn"
-            disabled={!quantity || quantity <= 0 || !sellerAllocations.length}
-            onClick={() =>
-              navigate("/order-confirmation", {
-                state: {
-                  product,
-                  formData,
-                  quantity,
-                  estimatedPrice,
-                  sellerAllocations,
-                  fulfilledQuantity,
-                  isFullyFulfilled,
-                  fulfilmentType,
-                  totalAvailableStock,
-                },
-              })
+            disabled={
+              !quantity ||
+              quantity <= 0 ||
+              !sellerAllocations.length
             }
+            onClick={continueToConfirmation}
           >
             {isFullyFulfilled
               ? "Continue to Order Confirmation →"

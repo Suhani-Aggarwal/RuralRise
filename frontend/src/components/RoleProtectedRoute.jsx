@@ -3,7 +3,7 @@ import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 function RoleProtectedRoute({ allowedRoles }) {
-  const { user, userProfile, loading } = useAuth();
+  const { user, activeRole, loading } = useAuth();
   const location = useLocation();
 
   if (loading) {
@@ -14,21 +14,15 @@ function RoleProtectedRoute({ allowedRoles }) {
     return <Navigate to="/login" replace state={{ from: location }} />;
   }
 
-  if (!userProfile?.role) {
-    return (
-      <div className="auth-loading">
-        Your account role could not be found. Please contact the RuralRise team.
-      </div>
-    );
+  if (!activeRole) {
+    return <Navigate to="/my-dashboard" replace />;
   }
-
-  const userRole = String(userProfile.role).trim().toLowerCase();
 
   const permittedRoles = allowedRoles.map((role) =>
     String(role).trim().toLowerCase()
   );
 
-  if (!permittedRoles.includes(userRole)) {
+  if (!permittedRoles.includes(activeRole)) {
     return <Navigate to="/my-dashboard" replace />;
   }
 
