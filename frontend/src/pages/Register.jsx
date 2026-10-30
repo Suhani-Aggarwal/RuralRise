@@ -1,77 +1,168 @@
-
-import { Link } from "react-router-dom";
+import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import {
+  signInWithEmailAndPassword,
+  sendPasswordResetEmail
+} from "firebase/auth";
+import { auth } from "../firebase/firebase";
 import "./Auth.css";
 
-function Register() {
+function Login() {
+  const navigate = useNavigate();
+
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  // Login Function
+  async function handleLogin(e) {
+    e.preventDefault();
+
+    setError("");
+    setMessage("");
+    setLoading(true);
+
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+
+      navigate("/dashboard");
+
+    } catch (error) {
+      console.error("Login error:", error);
+
+      if (
+        error.code === "auth/invalid-credential" ||
+        error.code === "auth/wrong-password" ||
+        error.code === "auth/user-not-found"
+      ) {
+        setError("Invalid email or password. Please try again.");
+      } else {
+        setError("Something went wrong. Please try again.");
+      }
+
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Forgot Password Function
+  async function handleForgotPassword() {
+    setError("");
+    setMessage("");
+
+    if (!email) {
+      setError("Please enter your email address first.");
+      return;
+    }
+
+    try {
+      await sendPasswordResetEmail(auth, email);
+
+      setMessage("Password reset link sent! Check your email.");
+
+    } catch (error) {
+      console.error("Password reset error:", error);
+
+      if (error.code === "auth/user-not-found") {
+        setError("No account found with this email.");
+      } else if (error.code === "auth/invalid-email") {
+        setError("Please enter a valid email address.");
+      } else {
+        setError("Unable to send reset email. Please try again.");
+      }
+    }
+  }
+
   return (
     <div className="auth-page">
+
       <div className="auth-brand">
         <Link to="/">❋ RuralRise</Link>
         <p>SELL → SCALE → GROW</p>
-        <div className="auth-brand-content">
-  <h1>
-    Local Roots.<br />
-    <span>Bigger Dreams.</span>
-  </h1>
-
-  <div className="brand-description">
-    Discover opportunities, connect with buyers,
-    and take your local business to new heights.
-  </div>
-</div>
       </div>
 
-      <div className="auth-card">
+      <div className="auth-card login-card">
+
         <div className="auth-heading">
-          <span>JOIN OUR COMMUNITY</span>
-          <h2>Create Your Account</h2>
-          <p>Start your journey towards bigger opportunities.</p>
+          <span>WELCOME BACK</span>
+          <h2>Login to RuralRise</h2>
+          <p>Continue growing your opportunities with us.</p>
         </div>
 
-        <form>
-          <div className="mb-3">
-            <label>Full Name</label>
-            <input type="text" className="form-control" placeholder="Enter your name" />
-          </div>
+        <form onSubmit={handleLogin}>
 
           <div className="mb-3">
             <label>Email Address</label>
-            <input type="email" className="form-control" placeholder="Enter your email" />
-          </div>
-
-          <div className="mb-3">
-            <label>Location</label>
-            <input type="text" className="form-control" placeholder="Your city or village" />
-          </div>
-
-          <div className="mb-3">
-            <label>I want to join as</label>
-            <select className="form-select" defaultValue="">
-              <option value="" disabled>Select your role</option>
-              <option value="seller">Seller / Producer</option>
-              <option value="buyer">Buyer</option>
-              <option value="worker">Skilled Worker</option>
-            </select>
+            <input
+              type="email"
+              className="form-control"
+              placeholder="Enter your email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
           </div>
 
           <div className="mb-3">
             <label>Password</label>
-            <input type="password" className="form-control" placeholder="Create a password" />
+            <input
+              type="password"
+              className="form-control"
+              placeholder="Enter your password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
           </div>
 
-          <button type="button" className="btn gold-btn auth-submit">
-            Create Account →
+          <div className="forgot-password">
+            <button
+              type="button"
+              onClick={handleForgotPassword}
+              style={{
+                background: "none",
+                border: "none",
+                padding: 0,
+                cursor: "pointer",
+                color: "inherit"
+              }}
+            >
+              Forgot password?
+            </button>
+          </div>
+
+          {error && (
+            <p style={{ color: "red" }}>{error}</p>
+          )}
+
+          {message && (
+            <p style={{ color: "green" }}>{message}</p>
+          )}
+
+          <button
+            type="submit"
+            className="btn gold-btn auth-submit"
+            disabled={loading}
+          >
+            {loading ? "Logging in..." : "Login →"}
           </button>
+
         </form>
 
         <p className="auth-switch">
-          Already have an account? <Link to="/login">Login</Link>
+          Don't have an account? <Link to="/register">Create Account</Link>
         </p>
+
       </div>
 
-      <p className="auth-footer">© 2026 RuralRise. All rights reserved.</p>
+      <p className="auth-footer">
+        © 2026 RuralRise. All rights reserved.
+      </p>
+
     </div>
   );
 }
 
-export default Register;
+export default Login;
