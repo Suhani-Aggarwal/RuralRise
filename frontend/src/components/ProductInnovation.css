@@ -1,0 +1,213 @@
+
+.innovation-section {
+  background: #ffffff;
+  border: 1px solid #e8e8e8;
+  border-radius: 16px;
+  padding: 24px;
+  margin: 24px 0;
+  color: #26332d;
+}
+
+.innovation-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 22px;
+}
+
+.innovation-tag {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #218653;
+  background: #eaf7ef;
+  padding: 6px 10px;
+  border-radius: 20px;
+}
+
+.innovation-header h2 {
+  font-size: 22px;
+  margin: 12px 0 6px;
+}
+
+.innovation-header p,
+.innovation-results-heading p {
+  color: #777;
+  font-size: 14px;
+  margin: 0;
+}
+
+.innovation-icon {
+  background: #eaf7ef;
+  color: #218653;
+  border-radius: 14px;
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  font-size: 27px;
+}
+
+.innovation-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 500px;
+}
+
+.innovation-controls label {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.innovation-controls select {
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 9px;
+  font-size: 14px;
+  background: white;
+}
+
+.innovation-generate-btn {
+  background: #218653;
+  color: white;
+  border: none;
+  padding: 13px 18px;
+  border-radius: 9px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.innovation-generate-btn:hover {
+  background: #176b40;
+}
+
+.innovation-generate-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.innovation-message,
+.innovation-loading {
+  color: #777;
+  font-size: 13px;
+  margin-top: 10px;
+}
+
+.innovation-error {
+  color: #d33;
+  font-size: 13px;
+}
+
+.innovation-results {
+  margin-top: 30px;
+}
+
+.innovation-results-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.innovation-results-heading h3 {
+  margin: 0 0 5px;
+  font-size: 18px;
+}
+
+.innovation-refresh {
+  background: #eaf7ef;
+  color: #218653;
+  border: none;
+  padding: 9px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.innovation-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 15px;
+}
+
+.innovation-card {
+  border: 1px solid #e8e8e8;
+  border-radius: 12px;
+  padding: 17px;
+  background: #fff;
+}
+
+.innovation-number {
+  color: #218653;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+.innovation-card h4 {
+  font-size: 16px;
+  margin: 12px 0 8px;
+}
+
+.innovation-card > p {
+  font-size: 13px;
+  line-height: 1.5;
+  color: #777;
+  min-height: 40px;
+}
+
+.innovation-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 13px;
+  font-size: 12px;
+}
+
+.innovation-detail strong {
+  color: #444;
+}
+
+.innovation-detail span {
+  color: #777;
+  line-height: 1.5;
+}
+
+.difficulty {
+  display: inline-block;
+  margin-top: 15px;
+  padding: 5px 9px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.difficulty.easy {
+  background: #e8f7ed;
+  color: #218653;
+}
+
+.difficulty.medium {
+  background: #fff5df;
+  color: #a36b00;
+}
+
+.difficulty.advanced {
+  background: #fce9e9;
+  color: #bd3e3e;
+}
+
+@media (max-width: 600px) {
+  .innovation-section {
+    padding: 17px;
+  }
+
+  .innovation-results-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

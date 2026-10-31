@@ -5,6 +5,7 @@ import { signOut } from "firebase/auth";
 import { auth } from "../firebase/firebase";
 import { useAuth } from "../context/AuthContext";
 import "./Dashboard.css";
+import ProductInnovation from "../components/ProductInnovation";
 
 function Dashboard() {
   const navigate = useNavigate();
@@ -287,6 +288,10 @@ function Dashboard() {
             <h3>{connections}</h3>
             <span className="stat-note">Accepted connections</span>
           </div>
+        </section>
+                {/* AI Product Innovation */}
+        <section className="dashboard-section">
+          <ProductInnovation products={myProducts} />
         </section>
 
         <section className="dashboard-section">
